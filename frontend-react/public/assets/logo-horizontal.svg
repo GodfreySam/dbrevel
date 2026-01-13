@@ -1,0 +1,38 @@
+<!-- DBRevel Logo - Full Horizontal -->
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient definition -->
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6a9d3a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5a8a2f;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect for revelation theme -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Icon: Open book with light rays (revelation theme) -->
+  <g transform="translate(10, 10)">
+    <!-- Book pages -->
+    <path d="M 15 10 Q 20 5 25 10 L 25 35 Q 20 30 15 35 Z" 
+          fill="url(#brandGradient)" opacity="0.9"/>
+    <path d="M 25 10 Q 30 5 35 10 L 35 35 Q 30 30 25 35 Z" 
+          fill="url(#brandGradient)" opacity="0.9"/>
+    
+    <!-- Light rays emanating (revelation) -->
+    <line x1="25" y1="15" x2="25" y2="5" stroke="#6a9d3a" stroke-width="2" opacity="0.6" filter="url(#glow)"/>
+    <line x1="25" y1="15" x2="20" y2="8" stroke="#6a9d3a" stroke-width="1.5" opacity="0.4" filter="url(#glow)"/>
+    <line x1="25" y1="15" x2="30" y2="8" stroke="#6a9d3a" stroke-width="1.5" opacity="0.4" filter="url(#glow)"/>
+  </g>
+  
+  <!-- Text: DBRevel -->
+  <text x="60" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="url(#brandGradient)">
+    DBRevel
+  </text>
+</svg>

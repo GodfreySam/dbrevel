@@ -1,0 +1,109 @@
+services:
+  # FastAPI Backend
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dbrevel-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - POSTGRES_URL=postgresql://dev:dev@postgres:5432/dbrevel_demo
+      - MONGODB_URL=mongodb://mongodb:27017/dbrevel_demo
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=True
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,http://localhost:3000
+      # Security keys (generate strong keys for production)
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production-min-32-chars}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-encryption-key-change-in-production}
+      # Email configuration (optional - set to empty to disable)
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - ZOHO_SMTP_USER=${ZOHO_SMTP_USER:-}
+      - ZOHO_SMTP_PASSWORD=${ZOHO_SMTP_PASSWORD:-}
+      # Demo database URLs (cloud-hosted for consistency across all environments)
+      # Set these to use your MongoDB Atlas and Supabase for demo data everywhere
+      - DEMO_POSTGRES_URL=${DEMO_POSTGRES_URL:-}
+      - DEMO_MONGODB_URL=${DEMO_MONGODB_URL:-}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - dbrevel-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: dbrevel-postgres
+    environment:
+      POSTGRES_DB: dbrevel_demo
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./examples/ecommerce/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./examples/ecommerce/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d dbrevel_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dbrevel-network
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: dbrevel-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - dbrevel-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: dbrevel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dbrevel-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    container_name: dbrevel-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+      # Fixed: Use correct demo tenant key (was dbrevel_default_tenant_key)
+      - VITE_TENANT_KEY=dbrevel_demo_tenant_key
+    depends_on:
+      - api
+    networks:
+      - dbrevel-network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+
+networks:
+  dbrevel-network:
+    driver: bridge

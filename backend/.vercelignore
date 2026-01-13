@@ -1,0 +1,46 @@
+# Vercel ignore file - exclude unnecessary files from deployment
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment files (use Vercel environment variables instead)
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Documentation (optional - can be included)
+# *.md
+
+# Docker files (not needed for Vercel)
+Dockerfile
+docker-compose.yml
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,55 @@
+# FastAPI Framework
+fastapi>=0.109.0,<0.116.0
+uvicorn[standard]>=0.27.0,<0.33.0
+pydantic>=2.5.3,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
+email-validator>=2.0.0,<3.0.0
+
+# Database Drivers
+asyncpg>=0.29.0,<0.30.0
+motor>=3.6.0,<4.0.0
+pymongo>=4.9,<4.10
+redis>=5.0.1,<6.0.0
+
+# Google Gemini AI (migrated from deprecated google.generativeai to google.genai)
+# Note: Requires Python 3.10+
+google-genai>=1.57.0,<2.0.0
+
+# Security & Authentication
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+python-multipart>=0.0.6,<1.0.0
+cryptography>=41.0.0
+
+# HTTP Client (for testing and external calls)
+# Updated to match google-genai requirements (>=0.28.1)
+httpx>=0.28.1,<1.0.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0,<2.0.0
+
+# JSON Utilities
+orjson>=3.9.12,<4.0.0
+
+# SQL Parser
+sqlparse>=0.4.4,<1.0.0
+
+# Testing
+pytest>=7.4.4,<9.0.0
+pytest-asyncio>=0.23.3,<0.25.0
+pytest-cov>=4.1.0,<7.0.0
+# Updated to support httpx>=0.28.1 (pytest-httpx 0.35.0+ supports httpx 0.28.x)
+pytest-httpx>=0.35.0,<1.0.0
+
+# Development Tools
+black>=23.12.1,<25.0.0
+ruff>=0.1.11,<1.0.0
+mypy>=1.11.0,<2.0.0
+
+# Type Stubs (optional, for better IDE support)
+types-redis>=4.6.0
+types-python-jose>=3.3.0
+types-passlib>=1.7.7
+
+# Vercel Serverless Support
+mangum>=0.17.0,<1.0.0

@@ -1,0 +1,23 @@
+{
+  "name": "DBRevel - AI-Powered Database SDK",
+  "short_name": "DBRevel",
+  "description": "Convert natural language into secure, optimized database queries. Eliminate 60% of backend boilerplate with AI-powered queries.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#6a9d3a",
+  "theme_color": "#6a9d3a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/logo-horizontal.svg",
+      "sizes": "200x60",
+      "type": "image/svg+xml"
+    }
+  ]
+}

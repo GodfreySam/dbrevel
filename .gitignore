@@ -1,0 +1,148 @@
+# DbRevel - Git Ignore File
+
+# ============================================
+# PERSONAL & PRIVATE FILES (DO NOT COMMIT)
+# ============================================
+
+# Personal notes and planning
+NOTES.md
+NOTES/
+notes/
+TODO.md
+PERSONAL/
+personal/
+IDEAS.md
+ideas/
+BRAIN_DUMP.md
+STRATEGY/
+strategy/
+PRIVATE/
+private/
+
+# Business documents
+FINANCIALS/
+financials/
+INVESTORS/
+investors/
+CONTRACTS/
+contracts/
+PITCH_DECK/
+pitch-deck/
+*.xlsx
+*.xls
+
+# Scratch files
+scratch/
+temp-notes/
+TEMP/
+
+# ============================================
+# SECRETS & ENVIRONMENT
+# ============================================
+
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+secrets/
+*.pem
+*.key
+*.cert
+id_rsa*
+
+# Scripts with potential credentials (require .env to run)
+backend/scripts/*_local.py
+backend/scripts/*_test.py
+backend/scripts/backup_*.py
+backend/scripts/restore_*.py
+
+# ============================================
+# PYTHON / BACKEND
+# ============================================
+
+venv/
+env/
+.venv
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+scripts/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ============================================
+# NODE / FRONTEND
+# ============================================
+
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.vercel/
+.turbo/
+
+# ============================================
+# DATABASE
+# ============================================
+
+*.db
+*.sqlite
+*.sqlite3
+*.sql.gz
+dump/
+backups/
+
+# Docker override (for personal config)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ============================================
+# IDE & EDITORS
+# ============================================
+
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# ============================================
+# OPERATING SYSTEMS
+# ============================================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# LOGS & TEMPORARY
+# ============================================
+
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+
+# ============================================
+# MISCELLANEOUS
+# ============================================
+
+.cache/
+.claude/
+.cursor/
+.gemini/
+*.bak
+*.old

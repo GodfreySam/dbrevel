@@ -42,15 +42,15 @@ npm install @dbrevel/sdk
 ```
 
 ```typescript
-import { DbRevelClient } from '@dbrevel/sdk';
+import { DbRevelClient } from "@dbrevel/sdk";
 
 const client = new DbRevelClient({
-  apiKey: 'your_project_api_key',
-  baseURL: 'https://api.dbrevel.io'
+	apiKey: "your_project_api_key",
+	baseURL: "https://api.dbrevel.io",
 });
 
 const result = await client.query({
-  intent: 'Get all users from Lagos'
+	intent: "Get all users from Lagos",
 });
 ```
 
@@ -62,6 +62,25 @@ curl -X POST https://api.dbrevel.io/v1/query \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all active users"}'
 ```
+
+## Supported Languages
+
+> The DbRevel API can be used from any language that can make HTTP requests. Official SDKs provide added convenience, type safety, and helpers.
+
+| Language                |                                                           Official SDK | API Support          |
+| ----------------------- | ---------------------------------------------------------------------: | :------------------- |
+| TypeScript / JavaScript | Available — [@dbrevel/sdk](https://www.npmjs.com/package/@dbrevel/sdk) | ✓ Supported via REST |
+| Python                  |                                                            Coming Soon | ✓ Supported via REST |
+| Go                      |                                                            Coming Soon | ✓ Supported via REST |
+| Java                    |                                                            Coming Soon | ✓ Supported via REST |
+| C# / .NET               |                                                            Coming Soon | ✓ Supported via REST |
+| Ruby                    |                                                            Coming Soon | ✓ Supported via REST |
+| PHP                     |                                                            Coming Soon | ✓ Supported via REST |
+| Rust                    |                                                            Coming Soon | ✓ Supported via REST |
+| Swift                   |                                                            Coming Soon | ✓ Supported via REST |
+| Kotlin                  |                                                            Coming Soon | ✓ Supported via REST |
+
+If you'd like to contribute an SDK for a language listed as "Coming Soon", see [sdk/README.md](sdk/README.md) for guidelines.
 
 ## 📁 Project Structure
 

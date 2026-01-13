@@ -9,7 +9,7 @@ The API supports **automatic demo account fallback** - you can test immediately 
 ### Test Without Authentication (Uses Demo Account)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all users"}'
 ```
@@ -30,7 +30,7 @@ Used for authenticated user operations (dashboard, profile management, projects)
 
 ```bash
 # Login to get JWT token
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -38,7 +38,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
   }'
 
 # Use token for authenticated requests
-curl -X GET "http://localhost:8000/api/v1/auth/me" \
+curl -X GET "https://api.dbrevel.io/api/v1/auth/me" \
   -H "Authorization: Bearer <your_jwt_token>"
 ```
 
@@ -54,13 +54,13 @@ Used for direct API queries with project API keys.
 
 ```bash
 # Using project API key
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: your_project_api_key" \
   -d '{"intent": "Show products with price over 100"}'
 
 # Using demo project API key
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: dbrevel_demo_project_key" \
   -d '{"intent": "Get all users"}'
@@ -127,17 +127,17 @@ The demo account includes pre-seeded sample data for testing:
 
 ```bash
 # Get all users
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all users"}'
 
 # Get users from Lagos
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all users from Lagos"}'
 
 # Show products
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Show all products"}'
 ```
@@ -146,17 +146,17 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ```bash
 # Products with price over 100
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Show products with price over 100"}'
 
 # Orders by status
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Count orders by status"}'
 
 # High-value orders
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get orders with total amount greater than 500"}'
 ```
@@ -165,17 +165,17 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ```bash
 # Total revenue by product
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Show total revenue by product category"}'
 
 # User order counts
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Count orders per user"}'
 
 # Average order value
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Calculate average order value"}'
 ```
@@ -184,17 +184,17 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ```bash
 # Get all reviews
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all reviews"}'
 
 # Recent reviews
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get recent reviews"}'
 
 # High-rated reviews
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Show reviews with rating 5"}'
 ```
@@ -202,7 +202,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 ### Dry Run (See Query Without Executing)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -d '{
     "intent": "Get all users from Lagos",
@@ -221,7 +221,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ```bash
 # 1. Register new user
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/register" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "newuser@example.com",
@@ -230,7 +230,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
   }'
 
 # 2. Verify email with OTP (check email for code)
-curl -X POST "http://localhost:8000/api/v1/auth/verify-email" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/verify-email" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "newuser@example.com",
@@ -238,7 +238,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/verify-email" \
   }'
 
 # 3. Login to get JWT token
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "newuser@example.com",
@@ -247,11 +247,11 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
 # Response includes: access_token and user info
 
 # 4. Get user profile
-curl -X GET "http://localhost:8000/api/v1/auth/me" \
+curl -X GET "https://api.dbrevel.io/api/v1/auth/me" \
   -H "Authorization: Bearer <jwt_token>"
 
 # 5. Update account database connections (optional)
-curl -X PUT "http://localhost:8000/api/v1/accounts/connections" \
+curl -X PUT "https://api.dbrevel.io/api/v1/accounts/connections" \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -264,12 +264,12 @@ curl -X PUT "http://localhost:8000/api/v1/accounts/connections" \
 
 ```bash
 # 1. Request password reset OTP
-curl -X POST "http://localhost:8000/api/v1/auth/forgot-password" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/forgot-password" \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com"}'
 
 # 2. Reset password with OTP
-curl -X POST "http://localhost:8000/api/v1/auth/reset-password" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/reset-password" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -281,7 +281,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/reset-password" \
 ### Password Change (Authenticated)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/auth/change-password" \
+curl -X POST "https://api.dbrevel.io/api/v1/auth/change-password" \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -296,7 +296,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/change-password" \
 
 ```bash
 # 1. Create a new project
-curl -X POST "http://localhost:8000/api/v1/projects" \
+curl -X POST "https://api.dbrevel.io/api/v1/projects" \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -307,15 +307,15 @@ curl -X POST "http://localhost:8000/api/v1/projects" \
 # Response includes: project_id, api_key
 
 # 2. List all projects
-curl -X GET "http://localhost:8000/api/v1/projects" \
+curl -X GET "https://api.dbrevel.io/api/v1/projects" \
   -H "Authorization: Bearer <jwt_token>"
 
 # 3. Get specific project
-curl -X GET "http://localhost:8000/api/v1/projects/<project_id>" \
+curl -X GET "https://api.dbrevel.io/api/v1/projects/<project_id>" \
   -H "Authorization: Bearer <jwt_token>"
 
 # 4. Update project
-curl -X PATCH "http://localhost:8000/api/v1/projects/<project_id>" \
+curl -X PATCH "https://api.dbrevel.io/api/v1/projects/<project_id>" \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -324,12 +324,12 @@ curl -X PATCH "http://localhost:8000/api/v1/projects/<project_id>" \
   }'
 
 # 5. Rotate project API key
-curl -X POST "http://localhost:8000/api/v1/projects/<project_id>/rotate-key" \
+curl -X POST "https://api.dbrevel.io/api/v1/projects/<project_id>/rotate-key" \
   -H "Authorization: Bearer <jwt_token>"
 # Returns new API key, old key becomes invalid
 
 # 6. Delete project
-curl -X DELETE "http://localhost:8000/api/v1/projects/<project_id>" \
+curl -X DELETE "https://api.dbrevel.io/api/v1/projects/<project_id>" \
   -H "Authorization: Bearer <jwt_token>"
 ```
 
@@ -337,7 +337,7 @@ curl -X DELETE "http://localhost:8000/api/v1/projects/<project_id>" \
 
 ```bash
 # Query using project-specific API key
-curl -X POST "http://localhost:8000/api/v1/query" \
+curl -X POST "https://api.dbrevel.io/api/v1/query" \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: <project_api_key>" \
   -d '{"intent": "Get all users"}'
@@ -354,7 +354,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ### 1. Home Page (Public Demo)
 
-**URL:** `http://localhost:5173/`
+**URL:** `https://www.dbrevel.io/`
 
 **Flow:**
 
@@ -367,7 +367,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ### 2. User Dashboard (Authenticated)
 
-**URL:** `http://localhost:5173/dashboard`
+**URL:** `https://www.dbrevel.io/dashboard`
 
 **Flow:**
 
@@ -437,7 +437,7 @@ curl -X POST "http://localhost:8000/api/v1/query" \
 
 ### Interactive Docs
 
-Visit `http://localhost:8000/docs` for interactive Swagger UI documentation.
+Visit `https://api.dbrevel.io/docs` for interactive Swagger UI documentation.
 
 **Features:**
 - Try it out directly in browser
@@ -447,7 +447,7 @@ Visit `http://localhost:8000/docs` for interactive Swagger UI documentation.
 
 ### OpenAPI Schema
 
-Access OpenAPI JSON schema at: `http://localhost:8000/openapi.json`
+Access OpenAPI JSON schema at: `https://api.dbrevel.io/openapi.json`
 
 ## 🚀 Comprehensive Testing Checklist
 
@@ -584,8 +584,8 @@ Access OpenAPI JSON schema at: `http://localhost:8000/openapi.json`
 
 ## 🔗 Additional Resources
 
-- **API Documentation:** `http://localhost:8000/docs`
-- **OpenAPI Schema:** `http://localhost:8000/openapi.json`
+- **API Documentation:** `https://api.dbrevel.io/docs`
+- **OpenAPI Schema:** `https://api.dbrevel.io/openapi.json`
 - **SDK Docs:** [sdk/typescript/README.md](sdk/typescript/README.md)
 - **Backend Setup:** [backend/README.md](backend/README.md)
 - **Frontend Setup:** [frontend-react/README.md](frontend-react/README.md)

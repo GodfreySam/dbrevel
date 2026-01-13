@@ -130,14 +130,11 @@ function AdminTenants() {
 			});
 			if (search) params.append("search", search);
 
-			const response = await fetch(
-				`${config.apiUrl}/admin/tenants?${params}`,
-				{
-					headers: {
-						Authorization: `Bearer ${token}`,
-					},
-				}
-			);
+			const response = await fetch(`${config.apiUrl}/admin/tenants?${params}`, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			});
 
 			if (!response.ok) {
 				if (response.status === 401 || response.status === 403) {
@@ -224,7 +221,9 @@ function AdminTenants() {
 									<td>
 										<span
 											className={
-												tenant.postgres_url ? "status-active" : "status-inactive"
+												tenant.postgres_url
+													? "status-active"
+													: "status-inactive"
 											}
 										>
 											{tenant.postgres_url ? "Configured" : "Not set"}
@@ -398,9 +397,7 @@ function AdminUsers() {
 											{user.email_verified ? "Yes" : "No"}
 										</span>
 									</td>
-									<td>
-										{new Date(user.created_at).toLocaleDateString()}
-									</td>
+									<td>{new Date(user.created_at).toLocaleDateString()}</td>
 								</tr>
 							))
 						)}
@@ -445,7 +442,7 @@ function AdminProjects() {
 	const [projects, setProjects] = useState<AdminProject[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [page, setPage] = useState(1);
+	const [page] = useState(1);
 
 	useEffect(() => {
 		loadProjects();
@@ -472,9 +469,7 @@ function AdminProjects() {
 			const data = await response.json();
 			setProjects(data);
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to load projects"
-			);
+			setError(err instanceof Error ? err.message : "Failed to load projects");
 		} finally {
 			setLoading(false);
 		}
@@ -553,17 +548,13 @@ function AdminProjects() {
 									<td>
 										<span
 											className={
-												project.is_active
-													? "status-active"
-													: "status-inactive"
+												project.is_active ? "status-active" : "status-inactive"
 											}
 										>
 											{project.is_active ? "Active" : "Inactive"}
 										</span>
 									</td>
-									<td>
-										{new Date(project.created_at).toLocaleDateString()}
-									</td>
+									<td>{new Date(project.created_at).toLocaleDateString()}</td>
 								</tr>
 							))
 						)}
@@ -587,7 +578,9 @@ function AdminHealth() {
 	return (
 		<div>
 			<h2>Database Health</h2>
-			<p className="placeholder-message">Connection health monitoring coming soon.</p>
+			<p className="placeholder-message">
+				Connection health monitoring coming soon.
+			</p>
 		</div>
 	);
 }

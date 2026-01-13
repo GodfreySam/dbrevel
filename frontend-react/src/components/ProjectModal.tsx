@@ -70,17 +70,20 @@ export default function ProjectModal({
 		setConnectionResults({});
 
 		try {
-			const response = await fetch(`${config.apiUrl}/projects/test-connection`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${token}`,
+			const response = await fetch(
+				`${config.apiUrl}/projects/test-connection`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						postgres_url: postgresUrl || null,
+						mongodb_url: mongodbUrl || null,
+					}),
 				},
-				body: JSON.stringify({
-					postgres_url: postgresUrl || null,
-					mongodb_url: mongodbUrl || null,
-				}),
-			});
+			);
 
 			if (!response.ok) {
 				if (response.status === 401) {
@@ -133,7 +136,10 @@ export default function ProjectModal({
 					return;
 				}
 				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.detail || `Failed to ${isEditMode ? "update" : "create"} project`);
+				throw new Error(
+					errorData.detail ||
+						`Failed to ${isEditMode ? "update" : "create"} project`,
+				);
 			}
 
 			const data = await response.json();
@@ -151,16 +157,19 @@ export default function ProjectModal({
 					}
 				}
 				keysMap.set(data.id, data.api_key);
-				localStorage.setItem("project_api_keys", JSON.stringify(Array.from(keysMap.entries())));
+				localStorage.setItem(
+					"project_api_keys",
+					JSON.stringify(Array.from(keysMap.entries())),
+				);
 			} else if (isEditMode) {
 				// If updating, invalidate the API key cache since we don't get it back on update
 				// The user will need to reveal it again if they want to see it
 				const storedKeys = localStorage.getItem("project_api_keys");
 				if (storedKeys) {
 					try {
-						const keysMap = new Map<string, string>(JSON.parse(storedKeys));
-						// Don't remove the key, but note that it might be stale
-						// The user can reveal it again if needed
+						// Validate stored keys JSON without creating an unused Map
+						JSON.parse(storedKeys);
+						// Note: we intentionally do not remove or mutate the cached keys here
 					} catch (e) {
 						console.warn("Failed to parse stored API keys:", e);
 					}
@@ -171,7 +180,11 @@ export default function ProjectModal({
 			onSuccess(data);
 			onClose();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : `Failed to ${isEditMode ? "update" : "create"} project`);
+			setError(
+				err instanceof Error
+					? err.message
+					: `Failed to ${isEditMode ? "update" : "create"} project`,
+			);
 		} finally {
 			setLoading(false);
 		}
@@ -285,8 +298,8 @@ export default function ProjectModal({
 					)}
 
 					<div className="security-note">
-						🔒 <strong>Security:</strong> All connection strings are encrypted at
-						rest and only decrypted when establishing database connections.
+						🔒 <strong>Security:</strong> All connection strings are encrypted
+						at rest and only decrypted when establishing database connections.
 					</div>
 
 					<div className="modal-actions">

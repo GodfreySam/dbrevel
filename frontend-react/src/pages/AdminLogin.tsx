@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { config } from "../config";
 import { useAuth } from "../contexts/AuthContext";
 import "./Login.css"; // Reuse existing login styles
 
@@ -26,7 +25,9 @@ export default function AdminLogin() {
 			setStep("otp");
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to send OTP. Please try again.",
+				err instanceof Error
+					? err.message
+					: "Failed to send OTP. Please try again.",
 			);
 		} finally {
 			setLoading(false);
@@ -60,9 +61,7 @@ export default function AdminLogin() {
 			await adminRequestOTP(email);
 			setMessage("OTP resent to your email.");
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to resend OTP.",
-			);
+			setError(err instanceof Error ? err.message : "Failed to resend OTP.");
 		} finally {
 			setLoading(false);
 		}
@@ -127,7 +126,9 @@ export default function AdminLogin() {
 								type="text"
 								id="otp"
 								value={otp}
-								onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+								onChange={(e) =>
+									setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+								}
 								placeholder="123456"
 								required
 								disabled={loading}
@@ -141,12 +142,14 @@ export default function AdminLogin() {
 									fontFamily: "monospace",
 								}}
 							/>
-							<p style={{
-								fontSize: "13px",
-								color: "#666",
-								marginTop: "8px",
-								textAlign: "center"
-							}}>
+							<p
+								style={{
+									fontSize: "13px",
+									color: "#666",
+									marginTop: "8px",
+									textAlign: "center",
+								}}
+							>
 								OTP sent to <strong>{email}</strong>
 							</p>
 						</div>
@@ -155,12 +158,15 @@ export default function AdminLogin() {
 							{loading ? "Verifying..." : "Verify & Login"}
 						</button>
 
-						<div className="login-footer" style={{
-							display: "flex",
-							justifyContent: "center",
-							gap: "20px",
-							marginTop: "16px"
-						}}>
+						<div
+							className="login-footer"
+							style={{
+								display: "flex",
+								justifyContent: "center",
+								gap: "20px",
+								marginTop: "16px",
+							}}
+						>
 							<button
 								type="button"
 								onClick={handleResendOTP}

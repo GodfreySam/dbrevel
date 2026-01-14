@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { config } from "../../config";
 import "./ApiDocs.css";
+import Header from "../../components/Header";
 
 type ViewerType = "redoc" | "swagger";
 
@@ -30,37 +30,7 @@ export default function ApiDocs() {
 	return (
 		<div className="app-wrapper">
 			{/* Header with Logo */}
-			<header className="site-header">
-				<div className="container">
-					<div className="header-content">
-						<Link to="/">
-							<img
-								src="/assets/logo-horizontal.svg"
-								alt="DBRevel - AI-Powered Database SDK Logo"
-								title="DBRevel - Convert natural language to database queries"
-								className="site-logo"
-								width="180"
-								height="54"
-								loading="eager"
-							/>
-						</Link>
-						<nav className="header-nav">
-							<Link to="/" className="nav-link">
-								Home
-							</Link>
-							<Link to="/docs" className="nav-link">
-								Documentation
-							</Link>
-							<Link to="/signup" className="nav-link">
-								Sign Up
-							</Link>
-							<Link to="/login" className="nav-link">
-								Login
-							</Link>
-						</nav>
-					</div>
-				</div>
-			</header>
+			<Header />
 
 			{/* API Documentation Page */}
 			<div className="api-docs-page">

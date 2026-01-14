@@ -6,6 +6,7 @@ import Toast from "../components/Toast/Toast";
 import { config } from "../config";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetchJson } from "../utils/api";
+import Header from "../components/Header";
 // removed unused ErrorBanner import
 
 interface QueryResult {
@@ -25,7 +26,7 @@ interface QueryResult {
 }
 
 export default function Home() {
-	const { isAuthenticated, user, logout } = useAuth();
+	const { isAuthenticated, user } = useAuth();
 	const [query, setQuery] = useState("");
 	const [dryRun, setDryRun] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -137,59 +138,7 @@ const result = await response.json();`;
 	return (
 		<div className="app-wrapper">
 			{/* Header with Logo */}
-			<header className="site-header">
-				<div className="container">
-					<div className="header-content">
-						<Link to="/">
-							<img
-								src="/assets/logo-horizontal.svg"
-								alt="DBRevel - AI-Powered Database SDK Logo"
-								title="DBRevel - Convert natural language to database queries"
-								className="site-logo"
-								width="180"
-								height="54"
-								loading="eager"
-							/>
-						</Link>
-						<nav className="header-nav">
-							<Link to="/docs" className="nav-link">
-								Documentation
-							</Link>
-							{isAuthenticated ? (
-								<>
-									<Link to="/dashboard" className="nav-link">
-										Dashboard
-									</Link>
-									<button
-										onClick={logout}
-										className="nav-link"
-										style={{
-											background: "none",
-											border: "none",
-											cursor: "pointer",
-											fontSize: "inherit",
-											fontFamily: "inherit",
-											color: "inherit",
-											padding: 0,
-										}}
-									>
-										Logout
-									</button>
-								</>
-							) : (
-								<>
-									<Link to="/signup" className="nav-link">
-										Sign Up
-									</Link>
-									<Link to="/login" className="nav-link">
-										Login
-									</Link>
-								</>
-							)}
-						</nav>
-					</div>
-				</div>
-			</header>
+			<Header />
 
 			{/* Authenticated User Banner */}
 			{isAuthenticated && (

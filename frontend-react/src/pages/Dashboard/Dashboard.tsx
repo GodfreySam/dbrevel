@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import "./Dashboard.css";
+import Header from "../../components/Header";
 
 interface AccountInfo {
 	id: string;
@@ -511,35 +512,7 @@ export default function Dashboard() {
 
 	return (
 		<div className="dashboard-container">
-			<div className="dashboard-header">
-				<div className="dashboard-title">
-					<Link to="/">
-						<img
-							src="/assets/logo-horizontal.svg"
-							alt="DbRevel"
-							className="dashboard-logo"
-						/>
-					</Link>
-					<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-						<p style={{ margin: 0, fontSize: "16px", fontWeight: 500 }}>
-							{user?.account_name || "Your Dashboard"}
-						</p>
-						<p
-							style={{
-								margin: 0,
-								fontSize: "13px",
-								color: "#666",
-								fontWeight: 400,
-							}}
-						>
-							Account ID: {accountInfo?.id || "Loading..."}
-						</p>
-					</div>
-				</div>
-				<button onClick={logout} className="logout-btn">
-					Logout
-				</button>
-			</div>
+			<Header />
 
 			<div className="dashboard-content">
 				{/* Projects Section - Primary Focus */}
@@ -881,8 +854,8 @@ export default function Dashboard() {
 							<span className="info-value">{user?.account_name}</span>
 						</div>
 						<div className="info-row">
-							<span className="info-label">User ID</span>
-							<span className="info-value">{user?.id}</span>
+							<span className="info-label">Account ID</span>
+							<span className="info-value">{accountInfo?.id}</span>
 						</div>
 					</div>
 

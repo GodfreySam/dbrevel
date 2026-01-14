@@ -3,15 +3,15 @@
 from datetime import datetime
 from typing import List, Optional
 
+from app.core.account_store import get_account_store
 from app.core.admin_otp import get_admin_otp_store
 from app.core.auth import create_access_token, get_current_admin
 from app.core.email_service import get_email_service
 from app.core.encryption import decrypt_database_url, mask_database_url
 from app.core.project_store import get_project_store
-from app.core.account_store import get_account_store
 from app.core.user_store import get_user_store
-from app.models.project import ProjectResponse
 from app.models.account import AccountResponse
+from app.models.project import ProjectResponse
 from app.models.user import TokenResponse, User, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
@@ -124,9 +124,9 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
     tenant = None
     tenant_store = get_account_store()
     if tenant_store and hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(user.tenant_id)
+        tenant = await tenant_store._get_by_id_async(user.account_id)
     elif tenant_store:
-        tenant = tenant_store.get_by_id(user.tenant_id)
+        tenant = tenant_store.get_by_id(user.account_id)
 
     # Create JWT with admin role
     access_token = create_access_token(
@@ -137,8 +137,8 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
     user_response = UserResponse(
         id=user.id,
         email=user.email,
-        tenant_id=user.tenant_id,
-        tenant_name=tenant.name if tenant else "Unknown",
+        account_id=user.account_id,
+        account_name=tenant.name if tenant else "Unknown",
         created_at=user.created_at,
         last_login=user.last_login,
         email_verified=user.email_verified,
@@ -158,14 +158,14 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
 
 
 @router.get("/accounts", response_model=List[AccountResponse])
-async def list_all_tenants(
+async def list_all_accounts(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     search: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
 ):
     """
-    List all tenants in the platform.
+    List all accounts in the platform.
 
     Supports pagination and search by name.
     Admin only.
@@ -183,7 +183,8 @@ async def list_all_tenants(
     # Filter by search if provided
     if search:
         search_lower = search.lower()
-        all_tenants = [t for t in all_tenants if search_lower in t.name.lower()]
+        all_tenants = [
+            t for t in all_tenants if search_lower in t.name.lower()]
 
     # Paginate
     start_idx = (page - 1) * limit
@@ -196,7 +197,8 @@ async def list_all_tenants(
             id=t.id,
             name=t.name,
             api_key=t.api_key,
-            postgres_url=mask_database_url(decrypt_database_url(t.postgres_url)),
+            postgres_url=mask_database_url(
+                decrypt_database_url(t.postgres_url)),
             mongodb_url=mask_database_url(decrypt_database_url(t.mongodb_url)),
             gemini_mode=t.gemini_mode,
         )
@@ -237,15 +239,17 @@ async def get_account_details(
         id=account.id,
         name=account.name,
         api_key=account.api_key,
-        postgres_url=mask_database_url(decrypt_database_url(account.postgres_url)),
-        mongodb_url=mask_database_url(decrypt_database_url(account.mongodb_url)),
+        postgres_url=mask_database_url(
+            decrypt_database_url(account.postgres_url)),
+        mongodb_url=mask_database_url(
+            decrypt_database_url(account.mongodb_url)),
         gemini_mode=account.gemini_mode,
     )
 
 
-@router.delete("/tenants/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_tenant(
-    tenant_id: str,
+@router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    account_id: str,
     current_admin: User = Depends(get_current_admin),
 ):
     """
@@ -268,37 +272,37 @@ async def delete_tenant(
             detail="Required stores not initialized",
         )
 
-    # Verify tenant exists
+    # Verify account exists
     if hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(tenant_id)
+        tenant = await tenant_store._get_by_id_async(account_id)
     else:
-        tenant = tenant_store.get_by_id(tenant_id)
+        tenant = tenant_store.get_by_id(account_id)
 
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found",
+            detail="Account not found",
         )
 
     # Delete all projects for this account
-    projects = await project_store.list_by_account_async(tenant_id)
+    projects = await project_store.list_by_account_async(account_id)
     for project in projects:
         await project_store.delete_project_async(project.id)
 
-    # Delete all users for this tenant
-    # Note: This requires a method in user_store to delete by tenant_id
-    # For now, we'll skip this and just delete the tenant
+    # Delete all users for this account
+    # Note: This requires a method in user_store to delete by account_id
+    # For now, we'll skip this and just delete the account
 
-    # Delete tenant (use async version if available)
+    # Delete account (use async version if available)
     if hasattr(tenant_store, "_delete_account_async"):
-        success = await tenant_store._delete_account_async(tenant_id)
+        success = await tenant_store._delete_account_async(account_id)
     else:
-        success = tenant_store.delete_account(tenant_id)
+        success = tenant_store.delete_account(account_id)
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete tenant",
+            detail="Failed to delete account",
         )
 
 
@@ -312,7 +316,8 @@ async def list_all_users(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     search: Optional[str] = Query(None),
-    tenant_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
 ):
     """
@@ -323,6 +328,7 @@ async def list_all_users(
     """
     user_store = get_user_store()
     tenant_store = get_account_store()
+    project_store = get_project_store()
 
     if not user_store or not tenant_store:
         raise HTTPException(
@@ -334,8 +340,11 @@ async def list_all_users(
     await user_store._ensure_connected()
     query_filter = {}
 
-    if tenant_id:
-        query_filter["tenant_id"] = tenant_id
+    if account_id:
+        query_filter["account_id"] = account_id
+
+    if role:
+        query_filter["role"] = role
 
     if search:
         query_filter["email"] = {"$regex": search, "$options": "i"}
@@ -343,28 +352,60 @@ async def list_all_users(
     # Get total count
     total_count = await user_store.db.users.count_documents(query_filter)
 
-    # Paginate
+    # Paginate and collect docs
     skip = (page - 1) * limit
-    cursor = user_store.db.users.find(query_filter).skip(skip).limit(limit).sort("created_at", -1)
+    cursor = user_store.db.users.find(query_filter).skip(
+        skip).limit(limit).sort("created_at", -1)
 
-    users = []
+    docs = []
     async for doc in cursor:
+        docs.append(doc)
+
+    # Compute project counts per account in a single aggregation
+    project_counts: dict = {}
+    if project_store:
+        try:
+            await project_store._ensure_connected()
+            account_ids = list({d.get("account_id")
+                               for d in docs if d.get("account_id")})
+            if account_ids:
+                pipeline = [
+                    {"$match": {"account_id": {"$in": account_ids}}},
+                    {"$group": {"_id": "$account_id", "count": {"$sum": 1}}},
+                ]
+                async for row in project_store.db.projects.aggregate(pipeline):
+                    project_counts[row["_id"]] = int(row["count"])
+        except Exception:
+            # If aggregation fails, leave counts empty
+            project_counts = {}
+
+    users: List[UserResponse] = []
+    for doc in docs:
         # Get tenant name
         tenant_name = "Unknown"
-        if "tenant_id" in doc:
-            tenant = await tenant_store._get_by_id_async(doc["tenant_id"])
-            if tenant:
-                tenant_name = tenant.name
+        if doc.get("account_id"):
+            try:
+                if hasattr(tenant_store, "_get_by_id_async"):
+                    tenant = await tenant_store._get_by_id_async(doc["account_id"])
+                else:
+                    tenant = tenant_store.get_by_id(doc["account_id"])
+                if tenant:
+                    tenant_name = tenant.name
+            except Exception:
+                tenant_name = "Unknown"
 
-        users.append(UserResponse(
-            id=doc.get("id", ""),
-            email=doc.get("email", ""),
-            tenant_id=doc.get("tenant_id", ""),
-            tenant_name=tenant_name,
-            email_verified=doc.get("email_verified", False),
-            role=doc.get("role", "user"),
-            created_at=doc.get("created_at"),
-        ))
+        users.append(
+            UserResponse(
+                id=doc.get("id", ""),
+                email=doc.get("email", ""),
+                account_id=doc.get("account_id", ""),
+                account_name=tenant_name,
+                email_verified=doc.get("email_verified", False),
+                role=doc.get("role", "user"),
+                created_at=doc.get("created_at"),
+                projects_count=project_counts.get(doc.get("account_id"), 0),
+            )
+        )
 
     return users
 
@@ -396,18 +437,18 @@ async def get_user_details(
             detail="User not found",
         )
 
-    # Get tenant info
+    # Get tenant/account info
     tenant = None
     if hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(user.tenant_id)
+        tenant = await tenant_store._get_by_id_async(user.account_id)
     else:
-        tenant = tenant_store.get_by_id(user.tenant_id)
+        tenant = tenant_store.get_by_id(user.account_id)
 
     return UserResponse(
         id=user.id,
         email=user.email,
-        tenant_id=user.tenant_id,
-        tenant_name=tenant.name if tenant else "Unknown",
+        account_id=user.account_id,
+        account_name=tenant.name if tenant else "Unknown",
         created_at=user.created_at,
         last_login=user.last_login,
         email_verified=user.email_verified,
@@ -483,13 +524,12 @@ async def delete_user(
 
 @router.get("/projects", response_model=List[ProjectResponse])
 async def list_all_projects(
-    tenant_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
 ):
     """
     List all projects across all tenants.
-
-    Can be filtered by tenant_id.
+    Can be filtered by account_id.
     Admin only.
     """
     project_store = get_project_store()
@@ -501,9 +541,9 @@ async def list_all_projects(
             detail="Project store not initialized",
         )
 
-    if tenant_id:
+    if account_id:
         # Filter by account
-        projects = await project_store.list_by_account_async(tenant_id)
+        projects = await project_store.list_by_account_async(account_id)
     else:
         # Get all projects
         projects = await project_store.list_all_projects_async()
@@ -512,9 +552,10 @@ async def list_all_projects(
         ProjectResponse(
             id=p.id,
             name=p.name,
-            tenant_id=p.tenant_id,
+            account_id=p.account_id,
             api_key="***",  # Mask for security
-            postgres_url=mask_database_url(decrypt_database_url(p.postgres_url)),
+            postgres_url=mask_database_url(
+                decrypt_database_url(p.postgres_url)),
             mongodb_url=mask_database_url(decrypt_database_url(p.mongodb_url)),
             created_at=p.created_at,
             updated_at=p.updated_at,
@@ -532,11 +573,11 @@ async def list_all_projects(
 class PlatformStats(BaseModel):
     """Platform-wide statistics."""
 
-    total_tenants: int
+    total_accounts: int
     total_users: int
     total_projects: int
     verified_users: int
-    active_tenants_last_7_days: int
+    active_accounts_last_7_days: int
     total_queries_today: int
 
 
@@ -574,7 +615,8 @@ async def get_platform_stats(
 
     # Count queries today (from usage_logs if it exists)
     from datetime import datetime, timedelta
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.utcnow().replace(
+        hour=0, minute=0, second=0, microsecond=0)
     total_queries_today = 0
     try:
         total_queries_today = await user_store.db.usage_logs.count_documents({
@@ -586,23 +628,23 @@ async def get_platform_stats(
 
     # Count active tenants in last 7 days
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    active_tenant_ids = set()
+    active_account_ids = set()
     try:
         async for log in user_store.db.usage_logs.find(
             {"timestamp": {"$gte": seven_days_ago}},
-            {"tenant_id": 1}
+            {"account_id": 1}
         ):
-            if "tenant_id" in log:
-                active_tenant_ids.add(log["tenant_id"])
+            if "account_id" in log:
+                active_account_ids.add(log["account_id"])
     except Exception:
         pass
 
     return PlatformStats(
-        total_tenants=total_tenants,
+        total_accounts=total_tenants, # Renamed to accounts
         total_users=total_users,
         total_projects=total_projects,
         verified_users=verified_users,
-        active_tenants_last_7_days=len(active_tenant_ids),
+        active_accounts_last_7_days=len(active_account_ids), # Renamed to accounts
         total_queries_today=total_queries_today,
     )
 
@@ -619,7 +661,7 @@ class UsageStats(BaseModel):
 async def get_usage_analytics(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
-    tenant_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
 ):
     """
@@ -638,14 +680,15 @@ async def get_usage_analytics(
 
     # Build query filter
     query_filter = {}
-    if tenant_id:
-        query_filter["tenant_id"] = tenant_id
+    if account_id:
+        query_filter["account_id"] = account_id
 
     # Parse date range if provided
     from datetime import datetime
     if start_date:
         try:
-            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(
+                start_date.replace('Z', '+00:00'))
             query_filter.setdefault("timestamp", {})["$gte"] = start_dt
         except ValueError:
             pass
@@ -680,10 +723,10 @@ async def get_usage_analytics(
 
 
 class HealthStatus(BaseModel):
-    """Database health status."""
+    """Database health status for accounts."""
 
-    tenant_id: str
-    tenant_name: str
+    account_id: str
+    account_name: str
     postgres_status: str
     mongodb_status: str
     last_checked: datetime
@@ -708,10 +751,12 @@ async def get_database_health(
             detail="Stores not initialized",
         )
 
-    from app.core.account_store import MongoDBAccountStore
-    from app.core.db_test import test_postgres_connection, test_mongodb_connection
-    from app.core.encryption import decrypt_database_url
     from datetime import datetime
+
+    from app.core.account_store import MongoDBAccountStore
+    from app.core.db_test import (test_mongodb_connection,
+                                  test_postgres_connection)
+    from app.core.encryption import decrypt_database_url
 
     health_statuses = []
 
@@ -724,16 +769,16 @@ async def get_database_health(
     # Get all projects
     all_projects = await project_store.list_all_projects_async()
 
-    # Group projects by tenant_id
-    projects_by_tenant = {}
+    # Group projects by account_id
+    projects_by_account = {}
     for project in all_projects:
-        if project.tenant_id not in projects_by_tenant:
-            projects_by_tenant[project.tenant_id] = []
-        projects_by_tenant[project.tenant_id].append(project)
+        if project.account_id not in projects_by_account:
+            projects_by_account[project.account_id] = []
+        projects_by_account[project.account_id].append(project)
 
-    # Test connections for each tenant's projects
+    # Test connections for each account's projects
     for tenant in all_tenants:
-        tenant_projects = projects_by_tenant.get(tenant.id, [])
+        tenant_projects = projects_by_account.get(tenant.id, [])
 
         # Aggregate health status across all projects for this tenant
         postgres_status = "unknown"
@@ -742,8 +787,10 @@ async def get_database_health(
         if tenant_projects:
             # Test first project's databases (projects have their own DB URLs)
             project = tenant_projects[0]
-            pg_url = decrypt_database_url(project.postgres_url) if project.postgres_url else None
-            mongo_url = decrypt_database_url(project.mongodb_url) if project.mongodb_url else None
+            pg_url = decrypt_database_url(
+                project.postgres_url) if project.postgres_url else None
+            mongo_url = decrypt_database_url(
+                project.mongodb_url) if project.mongodb_url else None
 
             # Test PostgreSQL
             if pg_url:
@@ -769,8 +816,8 @@ async def get_database_health(
             mongodb_status = "no_projects"
 
         health_statuses.append(HealthStatus(
-            tenant_id=tenant.id,
-            tenant_name=tenant.name,
+            account_id=tenant.id,
+            account_name=tenant.name,
             postgres_status=postgres_status,
             mongodb_status=mongodb_status,
             last_checked=datetime.utcnow(),

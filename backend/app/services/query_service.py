@@ -72,9 +72,9 @@ class QueryService:
                 timestamp=datetime.now(),
             )
 
-            # 8. Record basic per-tenant usage
+            # 8. Record basic per-account usage
             record_usage(
-                tenant_id=getattr(tenant, "id", "unknown"),
+                account_id=getattr(tenant, "id", "unknown"),
                 trace_id=trace_id,
                 execution_time_ms=execution_time,
                 gemini_tokens_used=0,  # Tracked separately if needed

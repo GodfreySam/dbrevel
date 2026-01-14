@@ -1,10 +1,10 @@
 """Ensure default admin user exists on startup."""
 
-from bson import ObjectId
-from app.core.auth import hash_password
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
+from app.core.auth import hash_password
 from app.core.user_store import get_user_store
+from bson import ObjectId
 
 
 async def ensure_admin_user():
@@ -19,8 +19,8 @@ async def ensure_admin_user():
         print("⚠ User store not initialized, skipping admin user creation")
         return
 
-    tenant_store = get_account_store()
-    if not tenant_store:
+    account_store = get_account_store()
+    if not account_store:
         print("⚠ Account store not initialized, skipping admin user creation")
         return
 
@@ -36,7 +36,8 @@ async def ensure_admin_user():
     if existing_admin:
         # User exists - ensure they have admin role
         if existing_admin.get("role") != "admin":
-            print(f"⚠ User {admin_email} exists but is not admin, updating role...")
+            print(
+                f"⚠ User {admin_email} exists but is not admin, updating role...")
             await user_store.db.users.update_one(
                 {"_id": existing_admin["_id"]},
                 {"$set": {"role": "admin", "email_verified": True}}
@@ -53,10 +54,10 @@ async def ensure_admin_user():
     import secrets
     temp_password = secrets.token_urlsafe(32)
 
-    # Create tenant for admin user (use async version to avoid event loop issues)
+    # Create account for admin user (use async version to avoid event loop issues)
     api_key = generate_account_key()
-    if hasattr(tenant_store, '_create_account_async'):
-        admin_tenant = await tenant_store._create_account_async(
+    if hasattr(account_store, '_create_account_async'):
+        admin_account = await account_store._create_account_async(
             name="Freyman Technology",
             api_key=api_key,
             postgres_url="",
@@ -65,7 +66,7 @@ async def ensure_admin_user():
             gemini_api_key=None,
         )
     else:
-        admin_tenant = tenant_store.create_account(
+        admin_account = account_store.create_account(
             name="Freyman Technology",
             api_key=api_key,
             postgres_url="",
@@ -74,8 +75,8 @@ async def ensure_admin_user():
             gemini_api_key=None,
         )
 
-    if not admin_tenant or not admin_tenant.id:
-        print(f"✗ Failed to create tenant for admin user")
+    if not admin_account or not admin_account.id:
+        print(f"✗ Failed to create account for admin user")
         return
 
     # Create admin user
@@ -83,7 +84,7 @@ async def ensure_admin_user():
         admin_user = await user_store.create_user(
             email=admin_email,
             password=temp_password,
-            tenant_id=admin_tenant.id,
+            account_id=admin_account.id,
         )
 
         # Set admin role and mark email as verified
@@ -101,10 +102,11 @@ async def ensure_admin_user():
         error_msg = str(e)
         # If duplicate key error, user already exists (race condition during startup)
         if "E11000" in error_msg or "duplicate key" in error_msg:
-            print(f"ℹ️  Admin user {admin_email} already exists (created by another process)")
+            print(
+                f"ℹ️  Admin user {admin_email} already exists (created by another process)")
             # Clean up the extra tenant we created
-            tenant_store.delete_account(admin_tenant.id)
+            account_store.delete_account(admin_account.id)
         else:
             print(f"✗ Failed to create admin user: {e}")
             # Clean up tenant if user creation failed
-            tenant_store.delete_account(admin_tenant.id)
+            account_store.delete_account(admin_account.id)

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import "./Dashboard.css";
 
-interface TenantInfo {
+interface AccountInfo {
 	id: string;
 	name: string;
 }
@@ -31,7 +31,7 @@ interface ProjectDetail {
 
 export default function Dashboard() {
 	const { user, token, logout, refreshUser } = useAuth();
-	const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
+	const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
 	const [projects, setProjects] = useState<ProjectListItem[]>([]);
 	// Store API keys separately (keyed by project ID)
 	const [projectApiKeys, setProjectApiKeys] = useState<Map<string, string>>(
@@ -152,9 +152,9 @@ export default function Dashboard() {
 		}
 	};
 
-	// Load tenant info and projects on mount
+	// Load account info and projects on mount
 	useEffect(() => {
-		const loadTenantAndProjects = async () => {
+		const loadAccountAndProjects = async () => {
 			// Wait for token to be available before making requests
 			if (!token || !user) {
 				return;
@@ -179,9 +179,9 @@ export default function Dashboard() {
 			try {
 				const { apiFetchJson } = await import("../../utils/api");
 
-				// Load tenant info
-				const tenantData = await apiFetchJson<TenantInfo>(
-					"/tenants/me/info-jwt",
+				// Load account info
+				const accountData = await apiFetchJson<AccountInfo>(
+					"/accounts/me/info-jwt",
 					{
 						headers: {
 							Authorization: `Bearer ${token}`,
@@ -189,7 +189,7 @@ export default function Dashboard() {
 					},
 					logout,
 				);
-				setTenantInfo(tenantData);
+				setAccountInfo(accountData);
 
 				// Load projects
 				await loadProjects();
@@ -217,7 +217,7 @@ export default function Dashboard() {
 		};
 
 		if (user && token) {
-			loadTenantAndProjects();
+			loadAccountAndProjects();
 		}
 	}, [user?.id, token]); // Only depend on user.id and token, not the entire user object or logout
 
@@ -532,7 +532,7 @@ export default function Dashboard() {
 								fontWeight: 400,
 							}}
 						>
-							Tenant ID: {tenantInfo?.id || "Loading..."}
+							Account ID: {accountInfo?.id || "Loading..."}
 						</p>
 					</div>
 				</div>

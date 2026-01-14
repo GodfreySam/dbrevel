@@ -1,31 +1,36 @@
-"""Account store abstraction for managing accounts."""
+"""Account store abstraction for managing accounts.
+
+This module provides a simple abstract `AccountStore` interface along with
+in-memory, file-backed and MongoDB-backed implementations used by the
+application. A small set of helper utilities used by the store are
+implemented here as well (e.g. `generate_account_id`).
+"""
 
 from __future__ import annotations
 
 import json
-import uuid
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
+from uuid import uuid4
 
-from app.core.encryption import (decrypt_database_url, encrypt_database_url,
-                                 mask_database_url)
 from app.core.account_keys import hash_api_key, verify_api_key
 from app.core.accounts import AccountConfig
+from app.core.encryption import encrypt_database_url
 
 
 def generate_account_id() -> str:
-    """
-    Generate a secure, unique account ID using UUID.
-
-    Returns:
-        A UUID4-based account ID string (e.g., "acc_550e8400-e29b-41d4-a716-446655440000")
-    """
-    return f"acc_{uuid.uuid4().hex}"
+    """Generate a short unique account id (UUID4 hex)."""
+    return uuid4().hex
 
 
 class AccountStore:
-    """Abstract interface for account storage and retrieval."""
+    """Abstract-ish base for account stores.
+
+    Methods raise `NotImplementedError` and are implemented by concrete
+    subclasses in this module.
+    """
 
     def get_by_api_key(self, api_key: str) -> Optional[AccountConfig]:
         """Lookup account by API key."""
@@ -109,7 +114,8 @@ class InMemoryAccountStore(AccountStore):
         # Use provided account_id, or generate one
         if account_id:
             if account_id in self._accounts_by_id:
-                raise ValueError(f"Account with ID '{account_id}' already exists")
+                raise ValueError(
+                    f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -226,7 +232,8 @@ class FileAccountStore(AccountStore):
                     self._accounts_by_key[account.api_key] = account
                     # Note: In file-based store, we store keys in plain text
                     # In production, you'd want to encrypt or hash these
-                    self._key_hashes[account.id] = hash_api_key(account.api_key)
+                    self._key_hashes[account.id] = hash_api_key(
+                        account.api_key)
         except Exception as e:
             print(f"Error loading accounts from file: {e}")
 
@@ -285,7 +292,8 @@ class FileAccountStore(AccountStore):
         # Use provided account_id, or generate one
         if account_id:
             if account_id in self._accounts_by_id:
-                raise ValueError(f"Account with ID '{account_id}' already exists")
+                raise ValueError(
+                    f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -390,14 +398,17 @@ class MongoDBAccountStore(AccountStore):
     async def _ensure_connected(self):
         """Ensure MongoDB connection is established."""
         if self.client is None:
-            from motor.motor_asyncio import AsyncIOMotorClient
             import logging
-            logging.info(f"MongoDBAccountStore: Connecting to MongoDB URL: {self.mongo_url}, database: {self.db_name}")
+
+            from motor.motor_asyncio import AsyncIOMotorClient
+            logging.info(
+                f"MongoDBAccountStore: Connecting to MongoDB URL: {self.mongo_url}, database: {self.db_name}")
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
             # Verify connection by pinging
             await self.client.admin.command('ping')
-            logging.info(f"MongoDBAccountStore: Connected to database '{self.db_name}'")
+            logging.info(
+                f"MongoDBAccountStore: Connected to database '{self.db_name}'")
             # Create indexes
             await self.db.users.create_index("email", unique=True)
             await self.db.users.create_index("account_id")
@@ -450,13 +461,39 @@ class MongoDBAccountStore(AccountStore):
 
         # Log for debugging
         import logging
-        logging.debug(f"MongoDBAccountStore: Querying for account_id={account_id}")
+        logging.debug(
+            f"MongoDBAccountStore: Querying for account_id={account_id}")
 
         account_doc = await self.db.accounts.find_one({"account_id": account_id})
         if account_doc:
-            logging.debug(f"MongoDBAccountStore: Found account document for account_id={account_id}")
+            logging.debug(
+                f"MongoDBAccountStore: Found account document for account_id={account_id}")
             return self._doc_to_account(account_doc)
         else:
+            # Try legacy fallbacks: some older records used tenant_id or legacy_tenant_id
+            try:
+                legacy_doc = await self.db.accounts.find_one({"$or": [{"tenant_id": account_id}, {"legacy_tenant_id": account_id}]})
+                if legacy_doc:
+                    logging.warning(
+                        f"MongoDBAccountStore: Found account via legacy field for account_id={account_id}")
+                    return self._doc_to_account(legacy_doc)
+            except Exception:
+                # ignore errors in legacy lookup
+                pass
+
+            # Try mapping via projects collection: find a project that references this legacy tenant id
+            try:
+                proj = await self.db.projects.find_one({"$or": [{"tenant_id": account_id}, {"account_id": account_id}]}, {"account_id": 1})
+                if proj and proj.get("account_id"):
+                    mapped_id = proj.get("account_id")
+                    mapped_doc = await self.db.accounts.find_one({"account_id": mapped_id})
+                    if mapped_doc:
+                        logging.warning(
+                            f"MongoDBAccountStore: Mapped legacy account_id {account_id} -> {mapped_id} via projects collection")
+                        return self._doc_to_account(mapped_doc)
+            except Exception:
+                pass
+
             # Log all account_ids in database for debugging
             all_docs = await self.db.accounts.find({}, {"account_id": 1}).to_list(length=100)
             all_ids = [doc.get("account_id") for doc in all_docs]
@@ -530,7 +567,8 @@ class MongoDBAccountStore(AccountStore):
             # Check if account_id already exists
             existing = await self.db.accounts.find_one({"account_id": account_id})
             if existing:
-                raise ValueError(f"Account with ID '{account_id}' already exists")
+                raise ValueError(
+                    f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -564,7 +602,8 @@ class MongoDBAccountStore(AccountStore):
 
         # Validate database name
         if not self.db_name or self.db_name.strip() == "":
-            logging.error(f"MongoDBAccountStore: CRITICAL - Database name is empty or invalid!")
+            logging.error(
+                f"MongoDBAccountStore: CRITICAL - Database name is empty or invalid!")
             raise RuntimeError("Database name is empty or invalid")
 
         # Log database info before insert
@@ -602,9 +641,11 @@ class MongoDBAccountStore(AccountStore):
         # This helps with MongoDB write propagation delays
         try:
             await self.db.accounts.find_one({"_id": result.inserted_id}, {"_id": 1})
-            logging.debug(f"MongoDBAccountStore: Confirmed account document exists with _id={result.inserted_id}")
+            logging.debug(
+                f"MongoDBAccountStore: Confirmed account document exists with _id={result.inserted_id}")
         except Exception as e:
-            logging.warning(f"MongoDBAccountStore: Could not immediately read back account document: {e}")
+            logging.warning(
+                f"MongoDBAccountStore: Could not immediately read back account document: {e}")
 
         # Verify the account was inserted by querying it back with retry
         import asyncio

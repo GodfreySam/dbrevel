@@ -218,13 +218,16 @@ async def get_current_user(
         )
 
     # Log token info for debugging (without exposing full token)
-    token_preview = f"{token[:10]}...{token[-10:]}" if len(token) > 20 else "***"
-    logging.debug(f"get_current_user: Validating token for user_id={user_id} (token: {token_preview})")
+    token_preview = f"{token[:10]}...{token[-10:]}" if len(
+        token) > 20 else "***"
+    logging.debug(
+        f"get_current_user: Validating token for user_id={user_id} (token: {token_preview})")
 
     user = await user_store.get_by_id(user_id)
 
     if user is None:
-        logging.error(f"get_current_user: User not found for user_id={user_id} from token")
+        logging.error(
+            f"get_current_user: User not found for user_id={user_id} from token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
@@ -233,13 +236,13 @@ async def get_current_user(
 
     logging.debug(
         f"get_current_user: Retrieved user {user.email} (id={user.id}, "
-        f"email_verified={user.email_verified}, tenant_id={user.tenant_id})"
+        f"email_verified={user.email_verified}, account_id={user.account_id})"
     )
 
     # Check if email is verified
     if not user.email_verified:
         logging.warning(
-            f"get_current_user: User {user.email} (id={user.id}, tenant_id={user.tenant_id}) "
+            f"get_current_user: User {user.email} (id={user.id}, account_id={user.account_id}) "
             f"attempted to access protected resource but email is not verified "
             f"(email_verified={user.email_verified}). User should verify email before accessing protected endpoints."
         )

@@ -129,6 +129,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     account_id: str
     account_name: str
+    projects_count: Optional[int] = None
     created_at: datetime
     last_login: Optional[datetime] = None
     email_verified: bool = False

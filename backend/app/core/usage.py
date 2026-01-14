@@ -8,7 +8,7 @@ from typing import Optional
 
 
 def record_usage(
-    tenant_id: str,
+    account_id: str,
     trace_id: str,
     execution_time_ms: float,
     gemini_tokens_used: int = 0,
@@ -20,15 +20,16 @@ def record_usage(
     or an external analytics/billing system.
     """
 
+    # Keep parameter name for backward compatibility but prefer `account_id` terminology
     timestamp = datetime.utcnow().isoformat()
     print(
-        f"[USAGE] ts={timestamp} tenant={tenant_id} trace={trace_id} "
+        f"[USAGE] ts={timestamp} account={account_id} trace={trace_id} "
         f"exec_ms={execution_time_ms:.2f} gemini_tokens={gemini_tokens_used}"
     )
 
 
 async def record_usage_async(
-    tenant_id: str,
+    account_id: str,
     project_id: Optional[str],
     trace_id: str,
     execution_time_ms: float,
@@ -43,7 +44,7 @@ async def record_usage_async(
     Also logs to stdout for backward compatibility.
 
     Args:
-        tenant_id: Tenant ID
+        account_id: Account ID
         project_id: Project ID (optional, for multi-project setups)
         trace_id: Unique trace ID for the query
         execution_time_ms: Query execution time in milliseconds
@@ -55,7 +56,7 @@ async def record_usage_async(
     # Stdout logging (backward compatibility)
     timestamp = datetime.utcnow()
     print(
-        f"[USAGE] ts={timestamp.isoformat()} tenant={tenant_id} "
+        f"[USAGE] ts={timestamp.isoformat()} account={account_id} "
         f"project={project_id or 'N/A'} trace={trace_id} "
         f"exec_ms={execution_time_ms:.2f} tokens={gemini_tokens_used} "
         f"type={query_type} status={status}"
@@ -73,7 +74,7 @@ async def record_usage_async(
             await tenant_store.db.usage_logs.insert_one(
                 {
                     "log_id": log_id,
-                    "tenant_id": tenant_id,
+                    "account_id": account_id,
                     "project_id": project_id,
                     "trace_id": trace_id,
                     "execution_time_ms": execution_time_ms,

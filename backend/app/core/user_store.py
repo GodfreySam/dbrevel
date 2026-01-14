@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from bson import ObjectId
 from app.core.auth import hash_password, verify_password
 from app.models.user import User
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
@@ -112,10 +112,11 @@ class UserStore:
         # Use _id (MongoDB's auto-generated ID)
         user_id = str(doc["_id"])
 
-        # Support both account_id (new) and tenant_id (old) for backward compatibility
-        account_id = doc.get("account_id") or doc.get("tenant_id")
+        # Require `account_id` field (legacy `tenant_id` removed)
+        account_id = doc.get("account_id")
         if not account_id:
-            raise ValueError(f"User document missing both account_id and tenant_id fields: {doc.get('email')}")
+            raise ValueError(
+                f"User document missing required 'account_id' field: {doc.get('email')}")
 
         return User(
             id=user_id,
@@ -124,8 +125,10 @@ class UserStore:
             account_id=account_id,
             created_at=doc["created_at"],
             last_login=doc.get("last_login"),
-            email_verified=doc.get("email_verified", False),  # Default to False for existing users
-            role=doc.get("role", "user"),  # Get role from database, default to "user"
+            # Default to False for existing users
+            email_verified=doc.get("email_verified", False),
+            # Get role from database, default to "user"
+            role=doc.get("role", "user"),
         )
 
     async def mark_email_verified(self, user_id: str) -> bool:
@@ -155,7 +158,8 @@ class UserStore:
                     f"email_verified is now {user_after.email_verified}"
                 )
             else:
-                logging.error(f"mark_email_verified: User {user_id} not found after update!")
+                logging.error(
+                    f"mark_email_verified: User {user_id} not found after update!")
             return True
         else:
             logging.warning(

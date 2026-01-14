@@ -90,172 +90,12 @@ function AdminOverview() {
 	);
 }
 
-interface Tenant {
-	id: string;
-	name: string;
-	api_key: string;
-	postgres_url: string;
-	mongodb_url: string;
-	gemini_mode: string;
-}
-
-function AdminTenants() {
-	const { token, logout } = useAuth();
-	const [tenants, setTenants] = useState<Tenant[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [search, setSearch] = useState("");
-	const [page, setPage] = useState(1);
-
-	useEffect(() => {
-		loadTenants();
-	}, [page, search]);
-
-	const loadTenants = async () => {
-		if (!token) return;
-
-		try {
-			const params = new URLSearchParams({
-				page: page.toString(),
-				limit: "20",
-			});
-			if (search) params.append("search", search);
-
-			const data = await apiFetchJson<Tenant[]>(
-				`/admin/tenants?${params}`,
-				{ headers: { Authorization: `Bearer ${token}` } },
-				() => logout(),
-			);
-
-			setTenants(data);
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load tenants");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	if (loading) {
-		return (
-			<div>
-				<h2>Tenant Management</h2>
-				<p>Loading tenants...</p>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div>
-				<h2>Tenant Management</h2>
-				<ErrorBanner message={error} onClose={() => setError(null)} />
-			</div>
-		);
-	}
-
-	return (
-		<div>
-			<h2>Tenant Management</h2>
-			<div className="admin-search-bar">
-				<input
-					type="text"
-					placeholder="Search tenants by name..."
-					value={search}
-					onChange={(e) => {
-						setSearch(e.target.value);
-						setPage(1);
-					}}
-					className="search-input"
-				/>
-			</div>
-
-			<div className="admin-table-container">
-				<table className="admin-table">
-					<thead>
-						<tr>
-							<th>ID</th>
-							<th>Name</th>
-							<th>API Key</th>
-							<th>PostgreSQL</th>
-							<th>MongoDB</th>
-							<th>Gemini Mode</th>
-						</tr>
-					</thead>
-					<tbody>
-						{tenants.length === 0 ? (
-							<tr>
-								<td colSpan={6} style={{ textAlign: "center" }}>
-									No tenants found
-								</td>
-							</tr>
-						) : (
-							tenants.map((tenant) => (
-								<tr key={tenant.id}>
-									<td>
-										<code>{tenant.id}</code>
-									</td>
-									<td>{tenant.name}</td>
-									<td>
-										<code style={{ fontSize: "11px" }}>
-											{tenant.api_key.substring(0, 20)}...
-										</code>
-									</td>
-									<td>
-										<span
-											className={
-												tenant.postgres_url
-													? "status-active"
-													: "status-inactive"
-											}
-										>
-											{tenant.postgres_url ? "Configured" : "Not set"}
-										</span>
-									</td>
-									<td>
-										<span
-											className={
-												tenant.mongodb_url ? "status-active" : "status-inactive"
-											}
-										>
-											{tenant.mongodb_url ? "Configured" : "Not set"}
-										</span>
-									</td>
-									<td>
-										<span className="badge">{tenant.gemini_mode}</span>
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
-			</div>
-
-			<div className="pagination">
-				<button
-					onClick={() => setPage(Math.max(1, page - 1))}
-					disabled={page === 1}
-					className="pagination-btn"
-				>
-					Previous
-				</button>
-				<span className="pagination-info">Page {page}</span>
-				<button
-					onClick={() => setPage(page + 1)}
-					disabled={tenants.length < 20}
-					className="pagination-btn"
-				>
-					Next
-				</button>
-			</div>
-		</div>
-	);
-}
-
 interface AdminUser {
 	id: string;
 	email: string;
 	account_id: string;
 	account_name: string;
+	projects_count?: number;
 	email_verified: boolean;
 	role: string;
 	created_at: string;
@@ -289,7 +129,8 @@ function AdminUsers() {
 				() => logout(),
 			);
 
-			setUsers(data);
+			// Filter out admin users from the general users list
+			setUsers(data.filter((u) => u.role !== "admin"));
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load users");
 		} finally {
@@ -336,7 +177,7 @@ function AdminUsers() {
 					<thead>
 						<tr>
 							<th>Email</th>
-							<th>Tenant</th>
+							<th>Projects</th>
 							<th>Role</th>
 							<th>Verified</th>
 							<th>Created</th>
@@ -353,7 +194,7 @@ function AdminUsers() {
 							users.map((user) => (
 								<tr key={user.id}>
 									<td>{user.email}</td>
-									<td>{user.account_name}</td>
+									<td>{user.projects_count ?? "-"}</td>
 									<td>
 										<span className={`badge badge-${user.role}`}>
 											{user.role}
@@ -466,7 +307,7 @@ function AdminProjects() {
 					<thead>
 						<tr>
 							<th>Name</th>
-							<th>Tenant ID</th>
+							<th>Account ID</th>
 							<th>PostgreSQL</th>
 							<th>MongoDB</th>
 							<th>Status</th>
@@ -529,6 +370,106 @@ function AdminProjects() {
 	);
 }
 
+function AdminAdmins() {
+	const { token, logout } = useAuth();
+	const [admins, setAdmins] = useState<AdminUser[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		loadAdmins();
+	}, []);
+
+	const loadAdmins = async () => {
+		if (!token) return;
+
+		try {
+			const params = new URLSearchParams({ page: "1", limit: "100" });
+			const data = await apiFetchJson<AdminUser[]>(
+				`/admin/users?${params}`,
+				{ headers: { Authorization: `Bearer ${token}` } },
+				() => logout(),
+			);
+
+			setAdmins(data.filter((u) => u.role === "admin"));
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to load admins");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (loading) {
+		return (
+			<div>
+				<h2>Admin Accounts</h2>
+				<p>Loading admins...</p>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div>
+				<h2>Admin Accounts</h2>
+				<ErrorBanner message={error} onClose={() => setError(null)} />
+			</div>
+		);
+	}
+
+	return (
+		<div>
+			<h2>Admin Accounts</h2>
+			<div className="admin-table-container">
+				<table className="admin-table">
+					<thead>
+						<tr>
+							<th>Email</th>
+							<th>Account</th>
+							<th>Role</th>
+							<th>Verified</th>
+							<th>Created</th>
+						</tr>
+					</thead>
+					<tbody>
+						{admins.length === 0 ? (
+							<tr>
+								<td colSpan={5} style={{ textAlign: "center" }}>
+									No admins found
+								</td>
+							</tr>
+						) : (
+							admins.map((user) => (
+								<tr key={user.id}>
+									<td>{user.email}</td>
+									<td>{user.account_name}</td>
+									<td>
+										<span className={`badge badge-${user.role}`}>
+											{user.role}
+										</span>
+									</td>
+									<td>
+										<span
+											className={
+												user.email_verified
+													? "status-active"
+													: "status-inactive"
+											}
+										>
+											{user.email_verified ? "Yes" : "No"}
+										</span>
+									</td>
+									<td>{new Date(user.created_at).toLocaleDateString()}</td>
+								</tr>
+							))
+						)}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	);
+}
+
 function AdminAnalytics() {
 	return (
 		<div>
@@ -578,8 +519,8 @@ export default function AdminDashboard() {
 					<Link to="/admin" className="admin-nav-item">
 						Dashboard
 					</Link>
-					<Link to="/admin/tenants" className="admin-nav-item">
-						Tenants
+					<Link to="/admin/admins" className="admin-nav-item">
+						Admins
 					</Link>
 					<Link to="/admin/users" className="admin-nav-item">
 						Users
@@ -605,8 +546,8 @@ export default function AdminDashboard() {
 			<main className="admin-content">
 				<Routes>
 					<Route path="/" element={<AdminOverview />} />
-					<Route path="/tenants" element={<AdminTenants />} />
 					<Route path="/users" element={<AdminUsers />} />
+					<Route path="/admins" element={<AdminAdmins />} />
 					<Route path="/projects" element={<AdminProjects />} />
 					<Route path="/analytics" element={<AdminAnalytics />} />
 					<Route path="/health" element={<AdminHealth />} />

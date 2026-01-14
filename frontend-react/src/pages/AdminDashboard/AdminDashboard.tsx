@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useNavigate } from "react-router-dom";
-import { config } from "../config";
-import { useAuth } from "../contexts/AuthContext";
+import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { useAuth } from "../../contexts/AuthContext";
+import { apiFetchJson } from "../../utils/api";
 import "./AdminDashboard.css";
 
 interface PlatformStats {
@@ -28,21 +29,11 @@ function AdminOverview() {
 		if (!token) return;
 
 		try {
-			const response = await fetch(`${config.apiUrl}/admin/analytics/stats`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			});
-
-			if (!response.ok) {
-				if (response.status === 401 || response.status === 403) {
-					logout();
-					return;
-				}
-				throw new Error("Failed to load stats");
-			}
-
-			const data = await response.json();
+			const data = await apiFetchJson<PlatformStats>(
+				"/admin/analytics/stats",
+				{ headers: { Authorization: `Bearer ${token}` } },
+				() => logout(),
+			);
 			setStats(data);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load stats");
@@ -64,7 +55,7 @@ function AdminOverview() {
 		return (
 			<div>
 				<h2>Platform Overview</h2>
-				<div className="error-message">{error}</div>
+				<ErrorBanner message={error} onClose={() => setError(null)} />
 			</div>
 		);
 	}
@@ -130,21 +121,12 @@ function AdminTenants() {
 			});
 			if (search) params.append("search", search);
 
-			const response = await fetch(`${config.apiUrl}/admin/tenants?${params}`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			});
+			const data = await apiFetchJson<Tenant[]>(
+				`/admin/tenants?${params}`,
+				{ headers: { Authorization: `Bearer ${token}` } },
+				() => logout(),
+			);
 
-			if (!response.ok) {
-				if (response.status === 401 || response.status === 403) {
-					logout();
-					return;
-				}
-				throw new Error("Failed to load tenants");
-			}
-
-			const data = await response.json();
 			setTenants(data);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load tenants");
@@ -166,7 +148,7 @@ function AdminTenants() {
 		return (
 			<div>
 				<h2>Tenant Management</h2>
-				<div className="error-message">{error}</div>
+				<ErrorBanner message={error} onClose={() => setError(null)} />
 			</div>
 		);
 	}
@@ -301,21 +283,12 @@ function AdminUsers() {
 			});
 			if (search) params.append("search", search);
 
-			const response = await fetch(`${config.apiUrl}/admin/users?${params}`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			});
+			const data = await apiFetchJson<AdminUser[]>(
+				`/admin/users?${params}`,
+				{ headers: { Authorization: `Bearer ${token}` } },
+				() => logout(),
+			);
 
-			if (!response.ok) {
-				if (response.status === 401 || response.status === 403) {
-					logout();
-					return;
-				}
-				throw new Error("Failed to load users");
-			}
-
-			const data = await response.json();
 			setUsers(data);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load users");
@@ -337,7 +310,7 @@ function AdminUsers() {
 		return (
 			<div>
 				<h2>User Management</h2>
-				<div className="error-message">{error}</div>
+				<ErrorBanner message={error} onClose={() => setError(null)} />
 			</div>
 		);
 	}
@@ -452,21 +425,12 @@ function AdminProjects() {
 		if (!token) return;
 
 		try {
-			const response = await fetch(`${config.apiUrl}/admin/projects`, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			});
+			const data = await apiFetchJson<AdminProject[]>(
+				"/admin/projects",
+				{ headers: { Authorization: `Bearer ${token}` } },
+				() => logout(),
+			);
 
-			if (!response.ok) {
-				if (response.status === 401 || response.status === 403) {
-					logout();
-					return;
-				}
-				throw new Error("Failed to load projects");
-			}
-
-			const data = await response.json();
 			setProjects(data);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to load projects");
@@ -488,7 +452,7 @@ function AdminProjects() {
 		return (
 			<div>
 				<h2>Project Management</h2>
-				<div className="error-message">{error}</div>
+				<ErrorBanner message={error} onClose={() => setError(null)} />
 			</div>
 		);
 	}

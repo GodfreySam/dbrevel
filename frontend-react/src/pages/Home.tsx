@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import "../App.css";
 import LanguageSupportTable from "../components/LanguageSupportTable";
-import Toast from "../components/Toast";
+import Toast from "../components/Toast/Toast";
 import { config } from "../config";
 import { useAuth } from "../contexts/AuthContext";
+import { apiFetchJson } from "../utils/api";
+// removed unused ErrorBanner import
 
 interface QueryResult {
 	data: any[];
@@ -31,7 +33,10 @@ export default function Home() {
 	const [error, setError] = useState<string | null>(null);
 	const [showCodeExample, setShowCodeExample] = useState(false);
 	const [showBeforeAfter, setShowBeforeAfter] = useState(true);
-	const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+	const [toast, setToast] = useState<{
+		message: string;
+		type: "success" | "error" | "info";
+	} | null>(null);
 
 	const exampleQueries = [
 		"Get all users",
@@ -61,25 +66,11 @@ export default function Home() {
 				headers["X-Project-Key"] = config.accountKey;
 			}
 
-			const response = await fetch(`${config.apiUrl}/query`, {
+			const data = await apiFetchJson<QueryResult>("/query", {
 				method: "POST",
 				headers,
-				body: JSON.stringify({
-					intent: query,
-					dry_run: dryRun,
-				}),
+				body: JSON.stringify({ intent: query, dry_run: dryRun }),
 			});
-
-			if (!response.ok) {
-				const errorData = await response
-					.json()
-					.catch(() => ({ detail: response.statusText }));
-				throw new Error(
-					`HTTP ${response.status}: ${errorData.detail || response.statusText}`,
-				);
-			}
-
-			const data = await response.json();
 			setResult(data);
 		} catch (err) {
 			setError(
@@ -96,7 +87,10 @@ export default function Home() {
 			setToast({ message: `${label} copied to clipboard!`, type: "success" });
 		} catch (err) {
 			console.error("Failed to copy:", err);
-			setToast({ message: `Failed to copy ${label}. Please try again.`, type: "error" });
+			setToast({
+				message: `Failed to copy ${label}. Please try again.`,
+				type: "error",
+			});
 		}
 	};
 
@@ -221,7 +215,8 @@ const result = await response.json();`;
 					>
 						<span>
 							👋 Welcome back
-							{user?.account_name && user.account_name !== "DbRevel Demo Account"
+							{user?.account_name &&
+							user.account_name !== "DbRevel Demo Account"
 								? `, ${user.account_name}`
 								: user?.email
 								? `, ${user.email.split("@")[0]}`
@@ -432,7 +427,9 @@ console.log(result.data);`}
 								<div className="code-header">
 									<h4>TypeScript SDK</h4>
 									<button
-										onClick={() => copyToClipboard(generateSDKCode(), "SDK code")}
+										onClick={() =>
+											copyToClipboard(generateSDKCode(), "SDK code")
+										}
 										className="copy-btn"
 									>
 										Copy
@@ -444,7 +441,9 @@ console.log(result.data);`}
 								<div className="code-header">
 									<h4>JavaScript Fetch</h4>
 									<button
-										onClick={() => copyToClipboard(generateFetchCode(), "Fetch code")}
+										onClick={() =>
+											copyToClipboard(generateFetchCode(), "Fetch code")
+										}
 										className="copy-btn"
 									>
 										Copy
@@ -456,7 +455,9 @@ console.log(result.data);`}
 								<div className="code-header">
 									<h4>cURL</h4>
 									<button
-										onClick={() => copyToClipboard(generateCurl(), "cURL command")}
+										onClick={() =>
+											copyToClipboard(generateCurl(), "cURL command")
+										}
 										className="copy-btn"
 									>
 										Copy
@@ -559,7 +560,9 @@ console.log(result.data);`}
 								<div className="result-header">
 									<h3>Query Results</h3>
 									<button
-										onClick={() => copyToClipboard(generateCurl(), "cURL command")}
+										onClick={() =>
+											copyToClipboard(generateCurl(), "cURL command")
+										}
 										className="action-btn"
 										style={{ marginLeft: "auto" }}
 									>

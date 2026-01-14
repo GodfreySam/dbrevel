@@ -1,16 +1,16 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AdminDashboard from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
-import ApiDocs from "./pages/ApiDocs";
-import Dashboard from "./pages/Dashboard";
-import ForgotPassword from "./pages/ForgotPassword";
+import ApiDocs from "./pages/ApiDocs/ApiDocs";
+import Dashboard from "./pages/Dashboard/Dashboard";
+import ForgotPassword from "./pages/ForgotPassword/ForgotPassword";
 import Home from "./pages/Home";
-import Login from "./pages/Login";
-import ResetPassword from "./pages/ResetPassword";
-import Signup from "./pages/Signup";
-import VerifyEmail from "./pages/VerifyEmail";
+import Login from "./pages/Login/Login";
+import ResetPassword from "./pages/ResetPassword/ResetPassword";
+import Signup from "./pages/Signup/Signup";
+import VerifyEmail from "./pages/VerifyEmail/VerifyEmail";
 
 function App() {
 	return (

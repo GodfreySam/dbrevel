@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { config } from "../config";
+// removed unused config import
+import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { apiFetchJson } from "../../utils/api";
 import "./ResetPassword.css";
 
 export default function ResetPassword() {
@@ -50,26 +52,18 @@ export default function ResetPassword() {
 
 		setLoading(true);
 		try {
-			const response = await fetch(`${config.apiUrl}/auth/reset-password`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
+			const data = await apiFetchJson<{ access_token: string; user: any }>(
+				"/auth/reset-password",
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						email: formData.email,
+						otp: formData.otp,
+						new_password: formData.password,
+					}),
 				},
-				body: JSON.stringify({
-					email: formData.email,
-					otp: formData.otp,
-					new_password: formData.password,
-				}),
-			});
-
-			if (!response.ok) {
-				const errorData = await response
-					.json()
-					.catch(() => ({ detail: response.statusText }));
-				throw new Error(errorData.detail || "Password reset failed");
-			}
-
-			const data = await response.json();
+			);
 
 			// Store token and user info for auto-login
 			localStorage.setItem("dbrevel_auth_token", data.access_token);
@@ -104,7 +98,9 @@ export default function ResetPassword() {
 				</div>
 
 				<form onSubmit={handleSubmit} className="reset-password-form">
-					{error && <div className="error-message">{error}</div>}
+					{error && (
+						<ErrorBanner message={error} onClose={() => setError(null)} />
+					)}
 
 					{!email && (
 						<div className="form-group">

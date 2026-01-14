@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import "./Login.css"; // Reuse existing login styles
+import "./Login/Login.css"; // Reuse existing login styles
 
 export default function AdminLogin() {
 	const navigate = useNavigate();

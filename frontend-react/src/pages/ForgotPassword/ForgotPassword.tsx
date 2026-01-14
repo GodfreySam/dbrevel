@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { config } from "../config";
+// removed unused config import
+import ErrorBanner from "../../components/ErrorBanner/ErrorBanner";
+import { apiFetchJson } from "../../utils/api";
 import "./ForgotPassword.css";
 
 export default function ForgotPassword() {
@@ -15,20 +17,11 @@ export default function ForgotPassword() {
 		setLoading(true);
 
 		try {
-			const response = await fetch(`${config.apiUrl}/auth/forgot-password`, {
+			await apiFetchJson<void>("/auth/forgot-password", {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email }),
 			});
-
-			if (!response.ok) {
-				const errorData = await response
-					.json()
-					.catch(() => ({ detail: response.statusText }));
-				throw new Error(errorData.detail || "Request failed");
-			}
 
 			setSuccess(true);
 		} catch (err) {
@@ -92,7 +85,9 @@ export default function ForgotPassword() {
 				</div>
 
 				<form onSubmit={handleSubmit} className="forgot-password-form">
-					{error && <div className="error-message">{error}</div>}
+					{error && (
+						<ErrorBanner message={error} onClose={() => setError(null)} />
+					)}
 
 					<div className="form-group">
 						<label htmlFor="email">Email Address</label>

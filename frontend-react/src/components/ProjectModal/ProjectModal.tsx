@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { config } from "../config";
+import { config } from "../../config";
+import { parseApiError } from "../../utils/handleApiError";
+import ErrorBanner from "../ErrorBanner/ErrorBanner";
 import "./ProjectModal.css";
 
 interface Project {
@@ -90,8 +92,8 @@ export default function ProjectModal({
 					logout();
 					return;
 				}
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.detail || "Connection test failed");
+				const msg = await parseApiError(response);
+				throw new Error(msg || "Connection test failed");
 			}
 
 			const data = await response.json();
@@ -135,10 +137,9 @@ export default function ProjectModal({
 					logout();
 					return;
 				}
-				const errorData = await response.json().catch(() => ({}));
+				const msg = await parseApiError(response);
 				throw new Error(
-					errorData.detail ||
-						`Failed to ${isEditMode ? "update" : "create"} project`,
+					msg || `Failed to ${isEditMode ? "update" : "create"} project`,
 				);
 			}
 
@@ -203,7 +204,9 @@ export default function ProjectModal({
 				</div>
 
 				<form onSubmit={handleSubmit} className="project-form">
-					{error && <div className="error-message">{error}</div>}
+					{error && (
+						<ErrorBanner message={error} onClose={() => setError(null)} />
+					)}
 
 					<div className="form-group">
 						<label htmlFor="projectName">

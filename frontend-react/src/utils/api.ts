@@ -3,6 +3,7 @@
  */
 
 import { config } from "../config";
+import { parseApiError } from "./handleApiError";
 
 const TOKEN_KEY = "dbrevel_auth_token";
 
@@ -63,7 +64,9 @@ export async function apiFetch(
 
 	// Handle 401 Unauthorized - token expired or invalid
 	if (response.status === 401 && onUnauthorized) {
-		console.warn(`401 Unauthorized on ${url}. Token may be expired or invalid.`);
+		console.warn(
+			`401 Unauthorized on ${url}. Token may be expired or invalid.`,
+		);
 		onUnauthorized();
 		// Redirect to login will be handled by ProtectedRoute
 	}
@@ -71,17 +74,26 @@ export async function apiFetch(
 	// Handle 403 Forbidden - email not verified or insufficient permissions
 	// Log for debugging but don't auto-logout (user might need to verify email)
 	if (response.status === 403) {
-		const errorText = await response.clone().text().catch(() => "");
+		const errorText = await response
+			.clone()
+			.text()
+			.catch(() => "");
 		console.warn(
 			`403 Forbidden on ${url}. This may indicate email verification is required or insufficient permissions.`,
-			errorText ? `Error: ${errorText}` : ""
+			errorText ? `Error: ${errorText}` : "",
 		);
 	}
 
 	// Handle 404 Not Found - might indicate tenant not found or resource deleted
 	if (response.status === 404) {
-		const errorText = await response.clone().text().catch(() => "");
-		console.warn(`404 Not Found on ${url}.`, errorText ? `Error: ${errorText}` : "");
+		const errorText = await response
+			.clone()
+			.text()
+			.catch(() => "");
+		console.warn(
+			`404 Not Found on ${url}.`,
+			errorText ? `Error: ${errorText}` : "",
+		);
 	}
 
 	return response;
@@ -102,12 +114,8 @@ export async function apiFetchJson<T>(
 	const response = await apiFetch(url, options, onUnauthorized);
 
 	if (!response.ok) {
-		const error = await response.json().catch(() => ({
-			detail: response.statusText,
-		}));
-		throw new Error(
-			error.detail || `HTTP ${response.status}: ${response.statusText}`,
-		);
+		const msg = await parseApiError(response);
+		throw new Error(msg || `HTTP ${response.status}: ${response.statusText}`);
 	}
 
 	return response.json();

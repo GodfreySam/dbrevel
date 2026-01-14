@@ -6,7 +6,8 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { config } from "../config";
+import { apiFetch, apiFetchJson } from "../utils/api";
+import { parseApiError } from "../utils/handleApiError";
 
 interface User {
 	id: string;
@@ -108,23 +109,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		setToken(null);
 		setUser(null);
 
-		const response = await fetch(`${config.apiUrl}/auth/login`, {
+		const response = await apiFetch("/auth/login", {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ email, password }),
 		});
 
 		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			// Check if error is due to unverified email
-			if (response.status === 403 && error.detail?.includes("verified")) {
-				throw new Error("EMAIL_NOT_VERIFIED"); // Special error code for unverified email
+			const msg = await parseApiError(response);
+			if (response.status === 403 && msg?.toLowerCase().includes("verified")) {
+				throw new Error("EMAIL_NOT_VERIFIED");
 			}
-			throw new Error(error.detail || "Login failed");
+			throw new Error(msg || "Login failed");
 		}
 
 		const data = await response.json();
@@ -139,48 +135,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		password: string,
 		name: string,
 	): Promise<string> => {
-		const response = await fetch(`${config.apiUrl}/auth/register`, {
+		await apiFetchJson<void>("/auth/register", {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				email,
-				password,
-				name,
-			}),
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ email, password, name }),
 		});
-
-		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			throw new Error(error.detail || "Registration failed");
-		}
-
-		// Registration returns EmailVerificationResponse with a message
-		// We don't need to parse it, just return email for verification page
-		await response.json(); // Consume response body
 		return email;
 	};
 
 	const verifyEmail = async (email: string, otp: string) => {
-		const response = await fetch(`${config.apiUrl}/auth/verify-email`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
+		const data = await apiFetchJson<{ access_token: string; user: User }>(
+			"/auth/verify-email",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, otp }),
 			},
-			body: JSON.stringify({ email, otp }),
-		});
-
-		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			throw new Error(error.detail || "Email verification failed");
-		}
-
-		const data = await response.json();
+		);
 
 		// Clear any old tokens and user data before setting new one
 		// This ensures we don't have stale tokens from before verification
@@ -219,7 +190,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			// Update with validated user data
 			setUser(validatedUser);
 			localStorage.setItem(USER_KEY, JSON.stringify(validatedUser));
-			console.log("Email verified successfully. Token validated and user updated.");
+			console.log(
+				"Email verified successfully. Token validated and user updated.",
+			);
 		} catch (error) {
 			console.error("Token validation failed after email verification:", error);
 			// Clear invalid token
@@ -227,31 +200,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			localStorage.removeItem(USER_KEY);
 			setToken(null);
 			setUser(null);
-			throw new Error("Email verification succeeded but token validation failed. Please try logging in.");
+			throw new Error(
+				"Email verification succeeded but token validation failed. Please try logging in.",
+			);
 		}
 	};
 
 	const resendVerification = async (email: string) => {
 		// FastAPI POST with simple type expects it in the body as form data or query
 		// Using query parameter for consistency
-		const response = await fetch(
-			`${config.apiUrl}/auth/resend-verification?email=${encodeURIComponent(
-				email,
-			)}`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
+		await apiFetchJson<void>(
+			`/auth/resend-verification?email=${encodeURIComponent(email)}`,
+			{ method: "POST", headers: { "Content-Type": "application/json" } },
 		);
-
-		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			throw new Error(error.detail || "Failed to resend verification email");
-		}
 	};
 
 	const logout = useCallback(() => {
@@ -285,39 +246,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 	// Admin authentication methods
 	const adminRequestOTP = async (email: string) => {
-		const response = await fetch(`${config.apiUrl}/admin/request-otp`, {
+		await apiFetchJson<void>("/admin/request-otp", {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ email }),
 		});
-
-		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			throw new Error(error.detail || "Failed to request OTP");
-		}
 	};
 
 	const adminVerifyOTP = async (email: string, otp: string) => {
-		const response = await fetch(`${config.apiUrl}/admin/verify-otp`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
+		const data = await apiFetchJson<{ access_token: string; user: User }>(
+			"/admin/verify-otp",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, otp }),
 			},
-			body: JSON.stringify({ email, otp }),
-		});
-
-		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ detail: response.statusText }));
-			throw new Error(error.detail || "Invalid OTP");
-		}
-
-		const data = await response.json();
+		);
 		setToken(data.access_token);
 		setUser(data.user);
 		localStorage.setItem(TOKEN_KEY, data.access_token);

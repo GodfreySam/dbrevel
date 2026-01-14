@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 import "./Dashboard.css";
 
 interface TenantInfo {
@@ -84,7 +84,7 @@ export default function Dashboard() {
 		}
 
 		try {
-			const { apiFetchJson } = await import("../utils/api");
+			const { apiFetchJson } = await import("../../utils/api");
 
 			// Load projects (list endpoint doesn't include API keys)
 			setLoadingProjects(true);
@@ -177,7 +177,7 @@ export default function Dashboard() {
 			isLoadingRef.current = true;
 
 			try {
-				const { apiFetchJson } = await import("../utils/api");
+				const { apiFetchJson } = await import("../../utils/api");
 
 				// Load tenant info
 				const tenantData = await apiFetchJson<TenantInfo>(
@@ -244,7 +244,7 @@ export default function Dashboard() {
 		// If expanding and we don't have details yet, or details might be stale, fetch them
 		if (newExpandedId) {
 			try {
-				const { apiFetchJson } = await import("../utils/api");
+				const { apiFetchJson } = await import("../../utils/api");
 				const detail = await apiFetchJson<ProjectDetail>(
 					`/projects/${newExpandedId}`,
 					{
@@ -335,7 +335,7 @@ export default function Dashboard() {
 		if (!project) {
 			// Try to fetch project details if not in cache
 			try {
-				const { apiFetchJson } = await import("../utils/api");
+				const { apiFetchJson } = await import("../../utils/api");
 				project = await apiFetchJson<ProjectDetail>(
 					`/projects/${projectId}`,
 					{
@@ -376,7 +376,7 @@ export default function Dashboard() {
 		});
 
 		try {
-			const { apiFetchJson } = await import("../utils/api");
+			const { apiFetchJson } = await import("../../utils/api");
 			const result = await apiFetchJson<{
 				postgres?: {
 					success: boolean;
@@ -472,7 +472,7 @@ export default function Dashboard() {
 
 		setPasswordChangeLoading(true);
 		try {
-			const { apiFetchJson } = await import("../utils/api");
+			const { apiFetchJson } = await import("../../utils/api");
 			await apiFetchJson(
 				"/auth/change-password",
 				{
@@ -701,7 +701,7 @@ export default function Dashboard() {
 																	onClick={async () => {
 																		try {
 																			const { apiFetchJson } = await import(
-																				"../utils/api"
+																				"../../utils/api"
 																			);
 																			const result = await apiFetchJson<{
 																				project_id: string;

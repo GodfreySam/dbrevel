@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from app.adapters.factory import adapter_factory
+from app.core.exceptions import (InvalidQueryError, MissingCollectionError,
+                                 QueryValidationError, UnsupportedQueryError)
 from app.core.gemini import build_gemini_engine
 from app.core.usage import record_usage
 from app.models.query import (QueryMetadata, QueryPlan, QueryRequest,
@@ -47,7 +49,7 @@ class QueryService:
                 validation = await gemini_engine.validate_query(query, schema)
 
                 if not validation.get('safe', True):
-                    raise ValueError(
+                    raise QueryValidationError(
                         f"Unsafe query detected: {validation.get('issues', [])}")
 
             # 5. Execute queries
@@ -106,18 +108,18 @@ class QueryService:
         elif query_obj.query_type == "mongodb":
             # MongoDB queries must have a collection specified
             if not isinstance(query_obj.query, list):
-                raise ValueError(
+                raise InvalidQueryError(
                     "Invalid MongoDB query format: query must be a list (pipeline)")
 
             # Use collection from query plan, or try to infer from schema
             collection = query_obj.collection
             if not collection:
-                raise ValueError(
+                raise MissingCollectionError(
                     "Collection name required for MongoDB queries. The query plan must include a 'collection' field.")
 
             results = await adapter.execute(query_obj.query, collection)
         else:
-            raise ValueError(f"Unsupported query type: {query_obj.query_type}")
+            raise UnsupportedQueryError(f"Unsupported query type: {query_obj.query_type}")
 
         return results
 
@@ -136,11 +138,11 @@ class QueryService:
             elif query_obj.query_type == "mongodb":
                 # MongoDB queries require collection name
                 if not query_obj.collection:
-                    raise ValueError(
+                    raise MissingCollectionError(
                         f"Collection name required for MongoDB query on database '{query_obj.database}'")
                 task = adapter.execute(query_obj.query, query_obj.collection)
             else:
-                raise ValueError(
+                raise UnsupportedQueryError(
                     f"Unsupported query type for cross-db query: {query_obj.query_type}")
 
             tasks.append(task)

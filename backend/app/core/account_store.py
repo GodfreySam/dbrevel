@@ -5,7 +5,6 @@ in-memory, file-backed and MongoDB-backed implementations used by the
 application. A small set of helper utilities used by the store are
 implemented here as well (e.g. `generate_account_id`).
 """
-
 from __future__ import annotations
 
 import json
@@ -32,19 +31,19 @@ class AccountStore:
     subclasses in this module.
     """
 
-    def get_by_api_key(self, api_key: str) -> Optional[AccountConfig]:
+    async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Lookup account by API key."""
         raise NotImplementedError
 
-    def get_by_id(self, account_id: str) -> Optional[AccountConfig]:
+    async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         """Lookup account by ID."""
         raise NotImplementedError
 
-    def list_accounts(self) -> List[AccountConfig]:
+    async def list_accounts_async(self) -> List[AccountConfig]:
         """List all accounts."""
         raise NotImplementedError
 
-    def create_account(
+    async def create_account_async(
         self,
         name: str,
         api_key: str,
@@ -57,15 +56,15 @@ class AccountStore:
         """Create a new account."""
         raise NotImplementedError
 
-    def update_account(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
         """Update account configuration."""
         raise NotImplementedError
 
-    def delete_account(self, account_id: str) -> bool:
+    async def delete_account_async(self, account_id: str) -> bool:
         """Delete an account."""
         raise NotImplementedError
 
-    def rotate_api_key(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
         """Rotate account API key. Returns old key hash for revocation tracking."""
         raise NotImplementedError
 
@@ -78,7 +77,7 @@ class InMemoryAccountStore(AccountStore):
         self._accounts_by_key: Dict[str, AccountConfig] = {}
         self._key_hashes: Dict[str, str] = {}  # account_id -> key_hash
 
-    def get_by_api_key(self, api_key: str) -> Optional[AccountConfig]:
+    async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Lookup account by API key (supports both raw keys and hashed lookups)."""
         # Direct lookup (for backward compatibility)
         if api_key in self._accounts_by_key:
@@ -95,13 +94,13 @@ class InMemoryAccountStore(AccountStore):
 
         return None
 
-    def get_by_id(self, account_id: str) -> Optional[AccountConfig]:
+    async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         return self._accounts_by_id.get(account_id)
 
-    def list_accounts(self) -> List[AccountConfig]:
+    async def list_accounts_async(self) -> List[AccountConfig]:
         return list(self._accounts_by_id.values())
 
-    def create_account(
+    async def create_account_async(
         self,
         name: str,
         api_key: str,
@@ -145,7 +144,7 @@ class InMemoryAccountStore(AccountStore):
 
         return account
 
-    def update_account(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -174,7 +173,7 @@ class InMemoryAccountStore(AccountStore):
 
         return account
 
-    def delete_account(self, account_id: str) -> bool:
+    async def delete_account_async(self, account_id: str) -> bool:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return False
@@ -188,7 +187,7 @@ class InMemoryAccountStore(AccountStore):
 
         return True
 
-    def rotate_api_key(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -260,7 +259,7 @@ class FileAccountStore(AccountStore):
         except Exception as e:
             print(f"Error saving accounts to file: {e}")
 
-    def get_by_api_key(self, api_key: str) -> Optional[AccountConfig]:
+    async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         if api_key in self._accounts_by_key:
             return self._accounts_by_key[api_key]
 
@@ -273,13 +272,13 @@ class FileAccountStore(AccountStore):
 
         return None
 
-    def get_by_id(self, account_id: str) -> Optional[AccountConfig]:
+    async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         return self._accounts_by_id.get(account_id)
 
-    def list_accounts(self) -> List[AccountConfig]:
+    async def list_accounts_async(self) -> List[AccountConfig]:
         return list(self._accounts_by_id.values())
 
-    def create_account(
+    async def create_account_async(
         self,
         name: str,
         api_key: str,
@@ -324,7 +323,7 @@ class FileAccountStore(AccountStore):
         self._save_to_file()
         return account
 
-    def update_account(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -352,7 +351,7 @@ class FileAccountStore(AccountStore):
         self._save_to_file()
         return account
 
-    def delete_account(self, account_id: str) -> bool:
+    async def delete_account_async(self, account_id: str) -> bool:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return False
@@ -366,7 +365,7 @@ class FileAccountStore(AccountStore):
         self._save_to_file()
         return True
 
-    def rotate_api_key(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -416,18 +415,7 @@ class MongoDBAccountStore(AccountStore):
             await self.db.accounts.create_index("api_key_hash")
             logging.info(f"MongoDBAccountStore: Indexes created/verified")
 
-    def get_by_api_key(self, api_key: str) -> Optional[AccountConfig]:
-        """Lookup account by API key."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self._get_by_api_key_async(api_key))
-
-    async def _get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
+    async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Async version of get_by_api_key."""
         await self._ensure_connected()
 
@@ -444,18 +432,7 @@ class MongoDBAccountStore(AccountStore):
 
         return None
 
-    def get_by_id(self, account_id: str) -> Optional[AccountConfig]:
-        """Lookup account by ID."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self._get_by_id_async(account_id))
-
-    async def _get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
+    async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         """Async version of get_by_id."""
         await self._ensure_connected()
 
@@ -503,18 +480,7 @@ class MongoDBAccountStore(AccountStore):
             )
         return None
 
-    def list_accounts(self) -> List[AccountConfig]:
-        """List all accounts."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self._list_accounts_async())
-
-    async def _list_accounts_async(self) -> List[AccountConfig]:
+    async def list_accounts_async(self) -> List[AccountConfig]:
         """Async version of list_accounts."""
         await self._ensure_connected()
         cursor = self.db.accounts.find({})
@@ -523,31 +489,7 @@ class MongoDBAccountStore(AccountStore):
             accounts.append(self._doc_to_account(doc))
         return accounts
 
-    def create_account(
-        self,
-        name: str,
-        api_key: str,
-        postgres_url: str,
-        mongodb_url: str,
-        gemini_mode: str = "platform",
-        gemini_api_key: Optional[str] = None,
-        account_id: Optional[str] = None,
-    ) -> AccountConfig:
-        """Create a new account."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(
-            self._create_account_async(
-                name, api_key, postgres_url, mongodb_url, gemini_mode, gemini_api_key, account_id
-            )
-        )
-
-    async def _create_account_async(
+    async def create_account_async(
         self,
         name: str,
         api_key: str,
@@ -678,18 +620,7 @@ class MongoDBAccountStore(AccountStore):
 
         return account
 
-    def update_account(self, account_id: str, **updates) -> Optional[AccountConfig]:
-        """Update account configuration."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self._update_account_async(account_id, **updates))
-
-    async def _update_account_async(
+    async def update_account_async(
         self, account_id: str, **updates
     ) -> Optional[AccountConfig]:
         """Async version of update_account."""
@@ -726,39 +657,15 @@ class MongoDBAccountStore(AccountStore):
             return None
 
         # Return updated account
-        return await self._get_by_id_async(account_id)
+        return await self.get_by_id_async(account_id)
 
-    def delete_account(self, account_id: str) -> bool:
-        """Delete an account."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self._delete_account_async(account_id))
-
-    async def _delete_account_async(self, account_id: str) -> bool:
+    async def delete_account_async(self, account_id: str) -> bool:
         """Async version of delete_account."""
         await self._ensure_connected()
         result = await self.db.accounts.delete_one({"account_id": account_id})
         return result.deleted_count > 0
 
-    def rotate_api_key(self, account_id: str, new_api_key: str) -> Optional[str]:
-        """Rotate account API key."""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(
-            self._rotate_api_key_async(account_id, new_api_key)
-        )
-
-    async def _rotate_api_key_async(
+    async def rotate_api_key_async(
         self, account_id: str, new_api_key: str
     ) -> Optional[str]:
         """Async version of rotate_api_key."""
@@ -827,11 +734,5 @@ async def verify_account_exists(account_id: str) -> bool:
     Returns:
         True if account exists, False otherwise
     """
-    from app.core.account_store import MongoDBAccountStore
-
-    if isinstance(account_store, MongoDBAccountStore):
-        account = await account_store._get_by_id_async(account_id)
-    else:
-        account = account_store.get_by_id(account_id)
-
+    account = await get_account_store().get_by_id_async(account_id)
     return account is not None

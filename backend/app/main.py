@@ -12,17 +12,13 @@ import warnings
 from contextlib import asynccontextmanager
 
 from app.adapters.factory import adapter_factory
-from app.adapters.manager import (get_adapters, set_mongodb_adapter,
-                                  set_postgres_adapter)
-from app.adapters.mongodb import MongoDBAdapter
-from app.adapters.postgres import PostgresAdapter
 from app.api.v1.auth import router as auth_router
 from app.api.v1.query import router as query_router
 from app.api.v1.accounts import router as accounts_router
 from app.api.v1.endpoints.projects import router as projects_router
 from app.api.v1.endpoints.admin import router as admin_router
 from app.core.config import settings
-from app.core.demo_account import ensure_demo_account
+from app.core.demo_account import ensure_demo_account, get_demo_account_config
 from app.core.email_verification import init_email_verification_store
 from app.core.password_reset import init_password_reset_store
 from app.core.account_store import init_account_store
@@ -30,6 +26,7 @@ from app.core.user_store import init_user_store
 from app.core.project_store import initialize_project_store
 from app.core.admin_otp import init_admin_otp_store
 from app.core.ensure_admin import ensure_admin_user
+from app.api.error_handlers import add_exception_handlers
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -94,22 +91,6 @@ async def lifespan(app: FastAPI):
     # Validate environment before starting
     validate_environment()
 
-    # Startup
-    pg_adapter = PostgresAdapter(settings.POSTGRES_URL)
-    await pg_adapter.connect()
-    set_postgres_adapter(pg_adapter)
-    print("✓ PostgreSQL connected")
-
-    mongo_db_name = settings.MONGODB_URL.split('/')[-1].split('?')[0]
-    mongo_adapter = MongoDBAdapter(settings.MONGODB_URL, mongo_db_name)
-    await mongo_adapter.connect()
-    set_mongodb_adapter(mongo_adapter)
-    print("✓ MongoDB connected")
-
-    await pg_adapter.introspect_schema()
-    await mongo_adapter.introspect_schema()
-    print("✓ Schemas introspected")
-
     # Initialize account store with MongoDB for persistence
     # Extract base MongoDB URL (without database name) for account store
     # MONGODB_URL format: mongodb://host:port/database_name
@@ -140,9 +121,18 @@ async def lifespan(app: FastAPI):
     init_admin_otp_store(mongo_base_url, "dbrevel_platform")
     print("✓ Admin OTP store initialized")
 
-    # Ensure demo account exists
+    # Ensure demo account and project exist, and seed data if needed
     await ensure_demo_account()
     print("✓ Demo account ensured")
+
+    # Pre-warm demo account adapters
+    demo_config = get_demo_account_config()
+    try:
+        await adapter_factory.get_adapters_for_account(demo_config)
+        print("✓ Demo account database adapters pre-warmed")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not pre-warm demo account adapters: {e}")
+
 
     # VERIFY demo project is accessible via API key
     from app.core.demo_account import DEMO_PROJECT_API_KEY, DEMO_PROJECT_ID
@@ -171,8 +161,6 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    await pg_adapter.disconnect()
-    await mongo_adapter.disconnect()
     await adapter_factory.shutdown()
 
 app = FastAPI(
@@ -256,6 +244,9 @@ curl -X POST "http://localhost:8000/api/v1/query" \\
     },
 )
 
+# Add custom exception handlers
+add_exception_handlers(app)
+
 # CORS Configuration
 # Configured to allow requests from frontend and SDK clients
 # Supports multiple origins (comma-separated in ALLOWED_ORIGINS env var)
@@ -279,35 +270,43 @@ async def root():
 @app.get("/health")
 async def health_check():
     """
-    Health check endpoint.
-    In serverless environments, database connections may not be established yet.
-    This endpoint checks connectivity when adapters are available.
+    Health check endpoint for the demo environment.
+    This checks the connectivity of the pre-warmed demo database adapters.
     """
-    adapters = get_adapters()
-    pg_adapter = adapters.get("postgres")
-    mongo_adapter = adapters.get("mongodb")
+    try:
+        demo_config = get_demo_account_config()
+        adapters = await adapter_factory.get_adapters_for_account(demo_config)
+        
+        pg_adapter = adapters.get("postgres")
+        mongo_adapter = adapters.get("mongodb")
 
-    # In serverless, adapters may not be initialized (lifespan disabled)
-    # Check if adapters exist, if not, return "degraded" status
-    if not pg_adapter and not mongo_adapter:
+        if not pg_adapter and not mongo_adapter:
+            return {
+                "status": "degraded",
+                "message": "Demo database adapters not found in factory.",
+                "databases": {
+                    "postgres": "not_initialized",
+                    "mongodb": "not_initialized"
+                }
+            }
+
+        pg_healthy = await pg_adapter.health_check() if pg_adapter else False
+        mongo_healthy = await mongo_adapter.health_check() if mongo_adapter else False
+        
         return {
-            "status": "degraded",
-            "message": "Database adapters not initialized (serverless mode - connections are lazy)",
+            "status": "healthy" if pg_healthy and mongo_healthy else "unhealthy",
             "databases": {
-                "postgres": "not_initialized",
-                "mongodb": "not_initialized"
+                "postgres": "healthy" if pg_healthy else "unhealthy",
+                "mongodb": "healthy" if mongo_healthy else "unhealthy"
             }
         }
-
-    pg_healthy = await pg_adapter.health_check() if pg_adapter else False
-    mongo_healthy = await mongo_adapter.health_check() if mongo_adapter else False
-    return {
-        "status": "healthy" if (pg_healthy and mongo_healthy) else "unhealthy",
-        "databases": {
-            "postgres": "healthy" if pg_healthy else "unhealthy",
-            "mongodb": "healthy" if mongo_healthy else "unhealthy"
+    except Exception as e:
+        logger.error(f"Health check failed: {e}", exc_info=True)
+        return {
+            "status": "unhealthy",
+            "message": "An error occurred during health check.",
+            "error": str(e)
         }
-    }
 
 
 # Customize OpenAPI schema to remove contact and license from docs (we show them in frontend)

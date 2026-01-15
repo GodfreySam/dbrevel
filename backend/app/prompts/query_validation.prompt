@@ -1,0 +1,22 @@
+
+You are a database security expert. Validate this query for safety and correctness.
+
+QUERY TYPE: {query_type}
+QUERY: {query}
+SCHEMA: {schema_json}
+
+Check for:
+1. SQL/NoSQL injection vulnerabilities
+2. Dangerous operations (DROP, TRUNCATE, DELETE without WHERE)
+3. Performance issues (missing indexes, full table scans)
+4. Schema mismatches
+5. Missing constraints
+
+Return JSON:
+{{
+    "safe": true/false,
+    "issues": ["list of issues found"],
+    "severity": "low/medium/high",
+    "suggestions": ["performance/security suggestions"],
+    "estimated_cost": "low/medium/high"
+}}

@@ -6,7 +6,10 @@ from typing import Tuple
 import asyncpg
 from app.core.config import settings
 import app.core.account_store as account_store_module
+
+from app.core.accounts import AccountConfig
 from pymongo import MongoClient
+
 
 # Demo project configuration
 DEMO_PROJECT_API_KEY = "dbrevel_demo_project_key"
@@ -324,37 +327,20 @@ async def ensure_demo_account() -> bool:
 
         # Step 1: Ensure demo account exists (parent account for demo project)
         account_store = account_store_module.account_store  # Get current account store instance
-        existing_account = None
-        if hasattr(account_store, '_get_by_id_async'):
-            # Use async method for MongoDBAccountStore
-            existing_account = await account_store._get_by_id_async(DEMO_ACCOUNT_ID)
-        else:
-            # Fallback to sync for InMemoryAccountStore
-            existing_account = account_store.get_by_id(DEMO_ACCOUNT_ID)
+        existing_account = await account_store.get_by_id_async(DEMO_ACCOUNT_ID)
 
         if not existing_account:
             # Create new demo account (parent for demo project)
             # Note: Demo account doesn't need an API key since projects have the keys
-            if hasattr(account_store, '_create_account_async'):
-                account = await account_store._create_account_async(
-                    name=DEMO_ACCOUNT_NAME,
-                    api_key="",  # No account-level API key needed
-                    postgres_url="",  # Projects have their own DB URLs
-                    mongodb_url="",
-                    gemini_mode="platform",
-                    gemini_api_key=None,
-                    account_id=DEMO_ACCOUNT_ID,  # Always use "acc_demo_default" as the ID
-                )
-            else:
-                account = account_store.create_account(
-                    name=DEMO_ACCOUNT_NAME,
-                    api_key="",
-                    postgres_url="",
-                    mongodb_url="",
-                    gemini_mode="platform",
-                    gemini_api_key=None,
-                    account_id=DEMO_ACCOUNT_ID,
-                )
+            await account_store.create_account_async(
+                name=DEMO_ACCOUNT_NAME,
+                api_key="",  # No account-level API key needed
+                postgres_url="",  # Projects have their own DB URLs
+                mongodb_url="",
+                gemini_mode="platform",
+                gemini_api_key=None,
+                account_id=DEMO_ACCOUNT_ID,  # Always use "acc_demo_default" as the ID
+            )
             print(f"✓ Demo account created: {DEMO_ACCOUNT_NAME} (ID: {DEMO_ACCOUNT_ID})")
 
         # Step 2: Ensure demo project exists under demo account
@@ -371,7 +357,7 @@ async def ensure_demo_account() -> bool:
         if existing_project:
             # Update existing project with current demo database URLs and account_id
             # (This ensures account_id stays in sync if constant changes)
-            updated_project = await project_store.update_project_async(
+            await project_store.update_project_async(
                 DEMO_PROJECT_ID,
                 account_id=DEMO_ACCOUNT_ID,  # Ensure account_id is always current
                 postgres_url=demo_pg_url,
@@ -380,7 +366,7 @@ async def ensure_demo_account() -> bool:
             print(f"✓ Demo project updated: {DEMO_PROJECT_NAME} (API Key: {DEMO_PROJECT_API_KEY})")
         else:
             # Create new demo project
-            demo_project = await project_store.create_project_async(
+            await project_store.create_project_async(
                 name=DEMO_PROJECT_NAME,
                 account_id=DEMO_ACCOUNT_ID,
                 api_key=DEMO_PROJECT_API_KEY,
@@ -450,3 +436,21 @@ async def ensure_demo_account() -> bool:
         # Non-blocking: log warning but don't fail startup
         print(f"⚠️  Warning: Could not create/update demo account: {e}")
         return False
+
+
+def get_demo_account_config() -> AccountConfig:
+    """
+    Get the AccountConfig for the demo account.
+
+    This is used to pre-warm the demo account adapters at startup and for health checks.
+    """
+    postgres_url, mongodb_url = get_demo_database_urls()
+    return AccountConfig(
+        id=DEMO_ACCOUNT_ID,
+        name=DEMO_ACCOUNT_NAME,
+        api_key=DEMO_PROJECT_API_KEY,
+        postgres_url=postgres_url,
+        mongodb_url=mongodb_url,
+        gemini_mode="platform",
+        gemini_api_key=None,
+    )

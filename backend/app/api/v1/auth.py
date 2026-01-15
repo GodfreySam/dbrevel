@@ -23,46 +23,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 router = APIRouter()
 
 
-def _ensure_user_store():
-    """Ensure user store is initialized (fallback if not initialized at startup)."""
-    if user_store_module.user_store is None:
-        # Extract base MongoDB URL (without database name) for user store
-        # MONGODB_URL format: mongodb://host:port/database_name
-        # We need: mongodb://host:port (base URL) for user store
-        if '/' in settings.MONGODB_URL:
-            # Split on last '/' to get base URL
-            mongo_base_url = '/'.join(settings.MONGODB_URL.rsplit('/', 1)[:-1])
-        else:
-            mongo_base_url = settings.MONGODB_URL
-        from app.core.user_store import init_user_store
-        init_user_store(mongo_base_url, "dbrevel_platform")
-
-
-def _ensure_email_verification_store():
-    """Ensure email verification store is initialized (fallback if not initialized at startup)."""
-    if email_verification_module.email_verification_store is None:
-        # Extract base MongoDB URL (without database name) for email verification store
-        if '/' in settings.MONGODB_URL:
-            # Split on last '/' to get base URL
-            mongo_base_url = '/'.join(settings.MONGODB_URL.rsplit('/', 1)[:-1])
-        else:
-            mongo_base_url = settings.MONGODB_URL
-        from app.core.email_verification import init_email_verification_store
-        init_email_verification_store(mongo_base_url, "dbrevel_platform")
-
-
-def _ensure_password_reset_store():
-    """Ensure password reset store is initialized (fallback if not initialized at startup)."""
-    if password_reset_module.password_reset_store is None:
-        # Extract base MongoDB URL (without database name) for password reset store
-        if '/' in settings.MONGODB_URL:
-            mongo_base_url = '/'.join(settings.MONGODB_URL.rsplit('/', 1)[:-1])
-        else:
-            mongo_base_url = settings.MONGODB_URL
-        from app.core.password_reset import init_password_reset_store
-        init_password_reset_store(mongo_base_url, "dbrevel_platform")
-
-
 @router.post("/register", response_model=EmailVerificationResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: UserCreate):
     """
@@ -72,9 +32,6 @@ async def register(request: UserCreate):
     with an API key for database access. Note: Accounts don't have API keys, only projects do.
     Sends an email verification OTP. User must verify email before accessing protected endpoints.
     """
-    _ensure_user_store()
-
-    # Access user_store through module to get the latest initialized value
     user_store = user_store_module.user_store
     if user_store is None:
         raise HTTPException(
@@ -90,10 +47,6 @@ async def register(request: UserCreate):
             detail="User with this email already exists",
         )
 
-    # Create account without API key (projects will have the API keys)
-    # Use async method directly if account_store is MongoDBAccountStore (avoid event loop issues)
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
@@ -105,27 +58,14 @@ async def register(request: UserCreate):
     account_id_for_cleanup = None
 
     try:
-        if isinstance(account_store, MongoDBAccountStore):
-            # Call async method directly since we're in an async context
-            # This method already includes verification and will raise if account can't be persisted
-            account = await account_store._create_account_async(
-                name=request.name,
-                api_key="",  # No account-level API key - projects have keys
-                postgres_url="",  # Projects have their own DB URLs
-                mongodb_url="",
-                gemini_mode="platform",
-                gemini_api_key=None,
-            )
-        else:
-            # Fall back to synchronous method for other store types
-            account = account_store.create_account(
-                name=request.name,
-                api_key="",  # No account-level API key - projects have keys
-                postgres_url="",  # Projects have their own DB URLs
-                mongodb_url="",
-                gemini_mode="platform",
-                gemini_api_key=None,
-            )
+        account = await account_store.create_account_async(
+            name=request.name,
+            api_key="",  # No account-level API key - projects have keys
+            postgres_url="",  # Projects have their own DB URLs
+            mongodb_url="",
+            gemini_mode="platform",
+            gemini_api_key=None,
+        )
 
         # Verify account was created successfully
         if not account or not account.id:
@@ -138,19 +78,13 @@ async def register(request: UserCreate):
         account_id_for_cleanup = account.id
         logging.info(f"Registration: Created account_id={account.id} for user {request.email}")
 
-        # The _create_account_async method already verifies persistence internally
-        # But we'll do one more verification here for extra safety
         import asyncio
         verify_account = None
         max_retries = 3
         retry_delay = 0.3  # seconds
 
         for attempt in range(max_retries):
-            if isinstance(account_store, MongoDBAccountStore):
-                verify_account = await account_store._get_by_id_async(account.id)
-            else:
-                verify_account = account_store.get_by_id(account.id)
-
+            verify_account = await account_store.get_by_id_async(account.id)
             if verify_account:
                 logging.info(f"Registration: Verified account_id={account.id} exists in database (attempt {attempt + 1})")
                 break
@@ -164,16 +98,15 @@ async def register(request: UserCreate):
 
         if not verify_account:
             # Log all available accounts for debugging
-            if isinstance(account_store, MongoDBAccountStore):
-                try:
-                    all_accounts = await account_store._list_accounts_async()
-                    available_ids = [t.id for t in all_accounts] if all_accounts else []
-                    logging.error(
-                        f"Registration: Account {account.id} was created but cannot be retrieved after {max_retries} attempts. "
-                        f"Available account IDs in database: {available_ids}"
-                    )
-                except Exception as e:
-                    logging.error(f"Registration: Could not list accounts for debugging: {e}")
+            try:
+                all_accounts = await account_store.list_accounts_async()
+                available_ids = [t.id for t in all_accounts] if all_accounts else []
+                logging.error(
+                    f"Registration: Account {account.id} was created but cannot be retrieved after {max_retries} attempts. "
+                    f"Available account IDs in database: {available_ids}"
+                )
+            except Exception as e:
+                logging.error(f"Registration: Could not list accounts for debugging: {e}")
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -191,10 +124,7 @@ async def register(request: UserCreate):
                 f"attempting to clean up account {account_id_for_cleanup}: {e}"
             )
             try:
-                if isinstance(account_store, MongoDBAccountStore):
-                    await account_store._delete_account_async(account_id_for_cleanup)
-                else:
-                    account_store.delete_account(account_id_for_cleanup)
+                await account_store.delete_account_async(account_id_for_cleanup)
                 logging.info(f"Registration: Cleaned up account {account_id_for_cleanup}")
             except Exception as cleanup_error:
                 logging.error(f"Registration: Failed to clean up account {account_id_for_cleanup}: {cleanup_error}")
@@ -216,10 +146,7 @@ async def register(request: UserCreate):
     except Exception as e:
         # If user creation fails, clean up account
         logging.error(f"Registration: User creation failed for {request.email}, cleaning up account {account.id}: {e}")
-        if isinstance(account_store, MongoDBAccountStore):
-            await account_store._delete_account_async(account.id)
-        else:
-            account_store.delete_account(account.id)
+        await account_store.delete_account_async(account.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user: {str(e)}",
@@ -253,7 +180,6 @@ async def register(request: UserCreate):
             # User can create projects later via dashboard
 
     # Send email verification OTP
-    _ensure_email_verification_store()
     email_verification_store = email_verification_module.email_verification_store
     if email_verification_store:
         try:
@@ -281,9 +207,6 @@ async def login(request: UserLogin):
 
     Returns a JWT token for authentication.
     """
-    _ensure_user_store()
-
-    # Access user_store through module to get the latest initialized value
     user_store = user_store_module.user_store
     if user_store is None:
         raise HTTPException(
@@ -309,9 +232,6 @@ async def login(request: UserLogin):
             detail="Email not verified. Please check your email and verify your account before logging in.",
         )
 
-    # Get account info - use async method for MongoDB
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
@@ -328,24 +248,20 @@ async def login(request: UserLogin):
             detail="User account is missing account assignment. Please contact support.",
         )
 
-    if isinstance(account_store, MongoDBAccountStore):
-        account = await account_store._get_by_id_async(user.account_id)
-    else:
-        account = account_store.get_by_id(user.account_id)
+    account = await account_store.get_by_id_async(user.account_id)
 
     if not account:
         # Log available account IDs for debugging
         available_ids = []
-        if isinstance(account_store, MongoDBAccountStore):
-            try:
-                all_accounts = await account_store._list_accounts_async()
-                available_ids = [t.id for t in all_accounts] if all_accounts else []
-                logging.error(
-                    f"Login: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
-                    f"Available account IDs in database: {available_ids}"
-                )
-            except Exception as e:
-                logging.error(f"Login: Could not list accounts for debugging: {e}")
+        try:
+            all_accounts = await account_store.list_accounts_async()
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            logging.error(
+                f"Login: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
+                f"Available account IDs in database: {available_ids}"
+            )
+        except Exception as e:
+            logging.error(f"Login: Could not list accounts for debugging: {e}")
 
         error_detail = (
             f"Account not found for user account. "
@@ -385,9 +301,6 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
     Requires valid JWT token in Authorization header.
     """
-    # Get account info
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
@@ -409,25 +322,21 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
             detail=f"User account is missing account assignment. User ID: {current_user.id}, Email: {current_user.email}. Please contact support.",
         )
 
-    if isinstance(account_store, MongoDBAccountStore):
-        account = await account_store._get_by_id_async(current_user.account_id)
-    else:
-        account = account_store.get_by_id(current_user.account_id)
+    account = await account_store.get_by_id_async(current_user.account_id)
 
     if not account:
         # Log available account IDs for debugging
         available_ids = []
-        if isinstance(account_store, MongoDBAccountStore):
-            try:
-                all_accounts = await account_store._list_accounts_async()
-                available_ids = [t.id for t in all_accounts] if all_accounts else []
-                logging.error(
-                    f"get_current_user_info: Account not found for user {current_user.email} "
-                    f"(user_id={current_user.id}, account_id={current_user.account_id}). "
-                    f"Available account IDs in database: {available_ids}"
-                )
-            except Exception as e:
-                logging.error(f"get_current_user_info: Could not list accounts for debugging: {e}")
+        try:
+            all_accounts = await account_store.list_accounts_async()
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            logging.error(
+                f"get_current_user_info: Account not found for user {current_user.email} "
+                f"(user_id={current_user.id}, account_id={current_user.account_id}). "
+                f"Available account IDs in database: {available_ids}"
+            )
+        except Exception as e:
+            logging.error(f"get_current_user_info: Could not list accounts for debugging: {e}")
 
         error_detail = (
             f"Account not found for user account. "
@@ -461,10 +370,6 @@ async def verify_email(request: EmailVerificationRequest):
     After registration, users receive an OTP code via email.
     This endpoint verifies the code and marks the email as verified.
     """
-    _ensure_user_store()
-    _ensure_email_verification_store()
-
-    # Access stores through modules to get the latest initialized values
     user_store = user_store_module.user_store
     email_verification_store = email_verification_module.email_verification_store
 
@@ -484,19 +389,13 @@ async def verify_email(request: EmailVerificationRequest):
 
     # Check if already verified - return token and user data if so
     if user.email_verified:
-        # Get account info
-        from app.core.account_store import MongoDBAccountStore
-
         account_store = get_account_store()
         if account_store is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Account store not initialized. Please restart the server.",
             )
-        if isinstance(account_store, MongoDBAccountStore):
-            account = await account_store._get_by_id_async(user.account_id)
-        else:
-            account = account_store.get_by_id(user.account_id)
+        account = await account_store.get_by_id_async(user.account_id)
 
         if not account:
             raise HTTPException(
@@ -597,9 +496,6 @@ async def verify_email(request: EmailVerificationRequest):
         f"verify_email: User {user.email} (id={user.id}) email verification status confirmed: {user.email_verified}"
     )
 
-    # Get account info
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
@@ -611,23 +507,19 @@ async def verify_email(request: EmailVerificationRequest):
         f"verify_email: Looking up account for user {user.email} (user_id={user.id}, account_id={user.account_id})"
     )
 
-    if isinstance(account_store, MongoDBAccountStore):
-        account = await account_store._get_by_id_async(user.account_id)
-    else:
-        account = account_store.get_by_id(user.account_id)
+    account = await account_store.get_by_id_async(user.account_id)
 
     if not account:
         available_ids = []
-        if isinstance(account_store, MongoDBAccountStore):
-            try:
-                all_accounts = await account_store._list_accounts_async()
-                available_ids = [t.id for t in all_accounts] if all_accounts else []
-                logging.error(
-                    f"verify_email: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
-                    f"Available account IDs: {available_ids}"
-                )
-            except Exception as e:
-                logging.error(f"verify_email: Could not list accounts: {e}")
+        try:
+            all_accounts = await account_store.list_accounts_async()
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            logging.error(
+                f"verify_email: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
+                f"Available account IDs: {available_ids}"
+            )
+        except Exception as e:
+            logging.error(f"verify_email: Could not list accounts: {e}")
 
         error_detail = (
             f"Account not found for user account. "
@@ -670,10 +562,6 @@ async def resend_verification_email(email: str):
 
     Sends a new verification email to the user if their email is not yet verified.
     """
-    _ensure_user_store()
-    _ensure_email_verification_store()
-
-    # Access stores through modules to get the latest initialized values
     user_store = user_store_module.user_store
     email_verification_store = email_verification_module.email_verification_store
 
@@ -725,10 +613,6 @@ async def forgot_password(request: PasswordResetRequest):
     OTP expires in 10 minutes.
     For security, always returns success message even if email doesn't exist.
     """
-    _ensure_user_store()
-    _ensure_password_reset_store()
-
-    # Access stores through modules to get the latest initialized values
     user_store = user_store_module.user_store
     password_reset_store = password_reset_module.password_reset_store
 
@@ -764,10 +648,6 @@ async def reset_password(request: PasswordReset):
     Validates the OTP and updates the user's password.
     Returns a new JWT token for immediate login.
     """
-    _ensure_user_store()
-    _ensure_password_reset_store()
-
-    # Access stores through modules to get the latest initialized values
     user_store = user_store_module.user_store
     password_reset_store = password_reset_module.password_reset_store
 
@@ -815,19 +695,13 @@ async def reset_password(request: PasswordReset):
     # Invalidate all other reset OTPs for this user
     await password_reset_store.invalidate_user_otps(user.id)
 
-    # Get account info - use async method for MongoDB
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    if isinstance(account_store, MongoDBAccountStore):
-        account = await account_store._get_by_id_async(user.account_id)
-    else:
-        account = account_store.get_by_id(user.account_id)
+    account = await account_store.get_by_id_async(user.account_id)
 
     if not account:
         raise HTTPException(
@@ -863,10 +737,6 @@ async def change_password(
 
     Requires current password verification.
     """
-    _ensure_user_store()
-    _ensure_password_reset_store()
-
-    # Access stores through modules to get the latest initialized values
     user_store = user_store_module.user_store
     password_reset_store = password_reset_module.password_reset_store
 
@@ -916,7 +786,6 @@ async def debug_user_state(
             detail="Not found",
         )
 
-    _ensure_user_store()
     user_store = user_store_module.user_store
     if user_store is None:
         return {
@@ -943,36 +812,25 @@ async def debug_user_state(
         }
 
     # Check account existence
-    from app.core.account_store import MongoDBAccountStore
-
     account_store = get_account_store()
     account_exists = False
     account_info = None
     available_account_ids = []
 
     if user.account_id and account_store:
-        if isinstance(account_store, MongoDBAccountStore):
-            account = await account_store._get_by_id_async(user.account_id)
-            if account:
-                account_exists = True
-                account_info = {
-                    "id": account.id,
-                    "name": account.name,
-                }
-            # Get all accounts for debugging
-            try:
-                all_accounts = await account_store._list_accounts_async()
-                available_account_ids = [t.id for t in all_accounts] if all_accounts else []
-            except Exception as e:
-                logging.error(f"Could not list accounts: {e}")
-        else:
-            account = account_store.get_by_id(user.account_id)
-            if account:
-                account_exists = True
-                account_info = {
-                    "id": account.id,
-                    "name": account.name,
-                }
+        account = await account_store.get_by_id_async(user.account_id)
+        if account:
+            account_exists = True
+            account_info = {
+                "id": account.id,
+                "name": account.name,
+            }
+        # Get all accounts for debugging
+        try:
+            all_accounts = await account_store.list_accounts_async()
+            available_account_ids = [t.id for t in all_accounts] if all_accounts else []
+        except Exception as e:
+            logging.error(f"Could not list accounts: {e}")
 
     return {
         "user": {

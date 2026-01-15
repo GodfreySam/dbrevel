@@ -1,0 +1,32 @@
+
+Generate optimized database query from user intent.
+
+SCHEMAS:
+{schemas_str}
+
+CONTEXT: role={security_ctx.role}, org={security_ctx.org_id}, perms={security_ctx.permissions}
+FILTERS: {row_filters_str}
+MASKS: {field_masks_str}
+
+INTENT: "{intent}"
+
+RULES: PostgreSQL=$1/$2 params, MongoDB=$match/$group, apply filters/masks, max 1000 rows, use indexes.
+
+IMPORTANT: query_type must be exactly one of: "sql", "mongodb", or "cross-db"
+- Use "sql" for PostgreSQL queries (SELECT, INSERT, UPDATE, DELETE)
+- Use "mongodb" for MongoDB queries (aggregation pipelines, find operations)
+- Use "cross-db" only for queries spanning multiple databases
+
+REQUIRED FIELDS:
+- For MongoDB queries: MUST include "collection" field with the collection name (e.g., "users", "orders")
+- For PostgreSQL queries: "collection" should be null
+- "query" field: For SQL use string, for MongoDB use array of pipeline stages
+- "parameters": array of parameters for SQL queries (empty array [] for MongoDB)
+
+RETURN JSON (minimal format):
+For PostgreSQL: {{"databases":["postgres"],"queries":[{{"database":"postgres","query_type":"sql","query":"SELECT * FROM table WHERE col=$1 LIMIT 1000","parameters":["val"],"estimated_rows":100,"collection":null}}]}}
+For MongoDB: {{"databases":["mongodb"],"queries":[{{"database":"mongodb","query_type":"mongodb","query":[{{"$match":{{"city":"lagos"}}}},{{"$limit":1000}}],"parameters":[],"estimated_rows":100,"collection":"users"}}]}}
+
+CRITICAL:
+1. Return ONLY the JSON object, nothing else. No markdown, no explanations, no extra text before or after. Start with {{ and end with }}.
+2. For MongoDB queries, the "collection" field is REQUIRED and must match a collection name from the schema.

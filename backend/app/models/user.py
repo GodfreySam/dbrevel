@@ -87,6 +87,17 @@ class PasswordReset(BaseModel):
     new_password: str = Field(..., min_length=8,
                               description="New password (min 8 characters)")
 
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        """Strip whitespace and validate OTP format."""
+        if not v:
+            raise ValueError("OTP is required")
+        v = v.strip()
+        if len(v) != 6 or not v.isdigit():
+            raise ValueError("OTP must be exactly 6 digits")
+        return v
+
     model_config = {
         "json_schema_extra": {
             "example": {

@@ -3,7 +3,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.core.account_store import get_account_store
-from app.core.account_store import MongoDBAccountStore
 from app.core.account_keys import generate_account_key
 from app.core.encryption import mask_database_url
 from app.models.account import (
@@ -27,42 +26,6 @@ from app.adapters.factory import adapter_factory
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 
-async def get_account_by_id_async(account_id: str) -> Optional[AccountConfig]:
-    """
-    Helper function to get account by ID in an async context.
-
-    Handles the async/sync mismatch by calling the async method directly
-    when account_store is MongoDBAccountStore, avoiding event loop issues.
-    """
-    account_store = get_account_store()
-    if account_store is None:
-        return None
-    if isinstance(account_store, MongoDBAccountStore):
-        # Call async method directly since we're in an async context
-        return await account_store._get_by_id_async(account_id)
-    else:
-        # Fall back to synchronous method for other store types
-        return account_store.get_by_id(account_id)
-
-
-async def list_accounts_async() -> List[AccountConfig]:
-    """
-    Helper function to list all accounts in an async context.
-
-    Handles the async/sync mismatch by calling the async method directly
-    when account_store is MongoDBAccountStore, avoiding event loop issues.
-    """
-    account_store = get_account_store()
-    if account_store is None:
-        return []
-    if isinstance(account_store, MongoDBAccountStore):
-        # Call async method directly since we're in an async context
-        return await account_store._list_accounts_async()
-    else:
-        # Fall back to synchronous method for other store types
-        return account_store.list_accounts()
-
-
 @router.post("", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_account(
     request: AccountCreateRequest,
@@ -83,7 +46,7 @@ async def create_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    account = account_store.create_account(
+    account = await account_store.create_account_async(
         name=request.name,
         api_key=api_key,
         postgres_url=request.postgres_url,
@@ -109,7 +72,8 @@ async def list_accounts(admin: User = Depends(get_current_admin)):
     """
     List all accounts (without sensitive information like API keys).
     """
-    accounts = await list_accounts_async()
+    account_store = get_account_store()
+    accounts = await account_store.list_accounts_async()
     return [
         AccountListResponse(
             id=account.id,
@@ -128,7 +92,8 @@ async def get_account(
     """
     Get account details by ID.
     """
-    account = await get_account_by_id_async(account_id)
+    account_store = get_account_store()
+    account = await account_store.get_by_id_async(account_id)
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -156,7 +121,8 @@ async def update_account(
     """
     Update account configuration.
     """
-    account = await get_account_by_id_async(account_id)
+    account_store = get_account_store()
+    account = await account_store.get_by_id_async(account_id)
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -164,13 +130,12 @@ async def update_account(
         )
 
     updates = request.model_dump(exclude_unset=True)
-    account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    updated_account = account_store.update_account(account_id, **updates)
+    updated_account = await account_store.update_account_async(account_id, **updates)
 
     if not updated_account:
         raise HTTPException(
@@ -206,7 +171,7 @@ async def delete_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    success = account_store.delete_account(account_id)
+    success = await account_store.delete_account_async(account_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -227,7 +192,8 @@ async def rotate_api_key(
     Generates a new API key and invalidates the old one.
     The old key will immediately stop working.
     """
-    account = await get_account_by_id_async(account_id)
+    account_store = get_account_store()
+    account = await account_store.get_by_id_async(account_id)
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -238,13 +204,12 @@ async def rotate_api_key(
     new_api_key = generate_account_key()
 
     # Rotate key
-    account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    old_key_hash = account_store.rotate_api_key(account_id, new_api_key)
+    old_key_hash = await account_store.rotate_api_key_async(account_id, new_api_key)
 
     if not old_key_hash:
         raise HTTPException(
@@ -287,6 +252,7 @@ async def get_current_account_info_jwt(
     Returns full account details including API key.
     """
     import logging
+    account_store = get_account_store()
 
     # Log for debugging
     logging.info(f"Fetching account info for user {current_user.id} with account_id={current_user.account_id}")
@@ -298,12 +264,12 @@ async def get_current_account_info_jwt(
         )
 
     # Use async helper to avoid event loop issues
-    account = await get_account_by_id_async(current_user.account_id)
+    account = await account_store.get_by_id_async(current_user.account_id)
 
     if not account:
         # List all available accounts for debugging (in development only)
         try:
-            all_accounts = await list_accounts_async()
+            all_accounts = await account_store.list_accounts_async()
             available_ids = [t.id for t in all_accounts] if all_accounts else []
         except Exception as e:
             logging.warning(f"Could not list accounts for debugging: {e}")
@@ -354,9 +320,10 @@ async def test_database_connection(
     """
     # Determine account from either JWT user or API key
     account_config = None
+    account_store = get_account_store()
     if current_user:
         # JWT auth - get account from user
-        account_config = await get_account_by_id_async(current_user.account_id)
+        account_config = await account_store.get_by_id_async(current_user.account_id)
     elif account:
         # API key auth - account already resolved
         account_config = account
@@ -405,11 +372,12 @@ async def update_my_databases(
     # Determine account from either JWT user or API key
     account_config = None
     account_id = None
+    account_store = get_account_store()
 
     if current_user:
         # JWT auth - get account from user
         account_id = current_user.account_id
-        account_config = await get_account_by_id_async(account_id)
+        account_config = await account_store.get_by_id_async(account_id)
     elif account:
         # API key auth - account already resolved
         account_config = account
@@ -429,13 +397,12 @@ async def update_my_databases(
         )
 
     # Update account
-    account_store = get_account_store()
     if account_store is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized. Please restart the server.",
         )
-    updated_account = account_store.update_account(account_id, **updates)
+    updated_account = await account_store.update_account_async(account_id, **updates)
 
     if not updated_account:
         raise HTTPException(

@@ -121,12 +121,10 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
     await admin_otp_store.mark_otp_used(request.email, request.otp)
 
     # Get tenant info
-    tenant = None
-    tenant_store = get_account_store()
-    if tenant_store and hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(user.account_id)
-    elif tenant_store:
-        tenant = tenant_store.get_by_id(user.account_id)
+    account = None
+    account_store = get_account_store()
+    if account_store:
+        account = await account_store.get_by_id_async(user.account_id)
 
     # Create JWT with admin role
     access_token = create_access_token(
@@ -138,7 +136,7 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
         id=user.id,
         email=user.email,
         account_id=user.account_id,
-        account_name=tenant.name if tenant else "Unknown",
+        account_name=account.name if account else "Unknown",
         created_at=user.created_at,
         last_login=user.last_login,
         email_verified=user.email_verified,
@@ -170,26 +168,26 @@ async def list_all_accounts(
     Supports pagination and search by name.
     Admin only.
     """
-    tenant_store = get_account_store()
-    if not tenant_store:
+    account_store = get_account_store()
+    if not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized",
         )
 
     # Get all tenants (use async version)
-    all_tenants = await tenant_store._list_accounts_async()
+    all_accounts = await account_store.list_accounts_async()
 
     # Filter by search if provided
     if search:
         search_lower = search.lower()
-        all_tenants = [
-            t for t in all_tenants if search_lower in t.name.lower()]
+        all_accounts = [
+            t for t in all_accounts if search_lower in t.name.lower()]
 
     # Paginate
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
-    paginated_tenants = all_tenants[start_idx:end_idx]
+    paginated_accounts = all_accounts[start_idx:end_idx]
 
     # Convert to response model
     return [
@@ -202,7 +200,7 @@ async def list_all_accounts(
             mongodb_url=mask_database_url(decrypt_database_url(t.mongodb_url)),
             gemini_mode=t.gemini_mode,
         )
-        for t in paginated_tenants
+        for t in paginated_accounts
     ]
 
 
@@ -216,18 +214,14 @@ async def get_account_details(
 
     Admin only.
     """
-    tenant_store = get_account_store()
-    if not tenant_store:
+    account_store = get_account_store()
+    if not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Account store not initialized",
         )
 
-    # Use async version if available
-    if hasattr(tenant_store, "_get_by_id_async"):
-        account = await tenant_store._get_by_id_async(account_id)
-    else:
-        account = tenant_store.get_by_id(account_id)
+    account = await account_store.get_by_id_async(account_id)
 
     if not account:
         raise HTTPException(
@@ -262,23 +256,20 @@ async def delete_account(
 
     Admin only. Use with caution.
     """
-    tenant_store = get_account_store()
+    account_store = get_account_store()
     user_store = get_user_store()
     project_store = get_project_store()
 
-    if not tenant_store or not user_store or not project_store:
+    if not account_store or not user_store or not project_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Required stores not initialized",
         )
 
     # Verify account exists
-    if hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(account_id)
-    else:
-        tenant = tenant_store.get_by_id(account_id)
+    account = await account_store.get_by_id_async(account_id)
 
-    if not tenant:
+    if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Account not found",
@@ -294,10 +285,7 @@ async def delete_account(
     # For now, we'll skip this and just delete the account
 
     # Delete account (use async version if available)
-    if hasattr(tenant_store, "_delete_account_async"):
-        success = await tenant_store._delete_account_async(account_id)
-    else:
-        success = tenant_store.delete_account(account_id)
+    success = await account_store.delete_account_async(account_id)
 
     if not success:
         raise HTTPException(
@@ -327,10 +315,10 @@ async def list_all_users(
     Admin only.
     """
     user_store = get_user_store()
-    tenant_store = get_account_store()
+    account_store = get_account_store()
     project_store = get_project_store()
 
-    if not user_store or not tenant_store:
+    if not user_store or not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="User store not initialized",
@@ -382,24 +370,21 @@ async def list_all_users(
     users: List[UserResponse] = []
     for doc in docs:
         # Get tenant name
-        tenant_name = "Unknown"
+        account_name = "Unknown"
         if doc.get("account_id"):
             try:
-                if hasattr(tenant_store, "_get_by_id_async"):
-                    tenant = await tenant_store._get_by_id_async(doc["account_id"])
-                else:
-                    tenant = tenant_store.get_by_id(doc["account_id"])
-                if tenant:
-                    tenant_name = tenant.name
+                account = await account_store.get_by_id_async(doc["account_id"])
+                if account:
+                    account_name = account.name
             except Exception:
-                tenant_name = "Unknown"
+                account_name = "Unknown"
 
         users.append(
             UserResponse(
                 id=doc.get("id", ""),
                 email=doc.get("email", ""),
                 account_id=doc.get("account_id", ""),
-                account_name=tenant_name,
+                account_name=account_name,
                 email_verified=doc.get("email_verified", False),
                 role=doc.get("role", "user"),
                 created_at=doc.get("created_at"),
@@ -421,9 +406,9 @@ async def get_user_details(
     Admin only.
     """
     user_store = get_user_store()
-    tenant_store = get_account_store()
+    account_store = get_account_store()
 
-    if not user_store or not tenant_store:
+    if not user_store or not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="User store not initialized",
@@ -438,17 +423,13 @@ async def get_user_details(
         )
 
     # Get tenant/account info
-    tenant = None
-    if hasattr(tenant_store, "_get_by_id_async"):
-        tenant = await tenant_store._get_by_id_async(user.account_id)
-    else:
-        tenant = tenant_store.get_by_id(user.account_id)
+    account = await account_store.get_by_id_async(user.account_id)
 
     return UserResponse(
         id=user.id,
         email=user.email,
         account_id=user.account_id,
-        account_name=tenant.name if tenant else "Unknown",
+        account_name=account.name if account else "Unknown",
         created_at=user.created_at,
         last_login=user.last_login,
         email_verified=user.email_verified,
@@ -475,9 +456,9 @@ async def update_user(
     Admin only.
     """
     user_store = get_user_store()
-    tenant_store = get_account_store()
+    account_store = get_account_store()
 
-    if not user_store or not tenant_store:
+    if not user_store or not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="User store not initialized",
@@ -533,9 +514,9 @@ async def list_all_projects(
     Admin only.
     """
     project_store = get_project_store()
-    tenant_store = get_account_store()
+    account_store = get_account_store()
 
-    if not project_store or not tenant_store:
+    if not project_store or not account_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Project store not initialized",
@@ -590,19 +571,19 @@ async def get_platform_stats(
 
     Admin only.
     """
-    tenant_store = get_account_store()
+    account_store = get_account_store()
     user_store = get_user_store()
     project_store = get_project_store()
 
-    if not tenant_store or not user_store or not project_store:
+    if not account_store or not user_store or not project_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Required stores not initialized",
         )
 
     # Count tenants (use async version)
-    all_tenants = await tenant_store._list_accounts_async()
-    total_tenants = len(all_tenants)
+    all_accounts = await account_store.list_accounts_async()
+    total_accounts = len(all_accounts)
 
     # Count users
     await user_store._ensure_connected()
@@ -640,7 +621,7 @@ async def get_platform_stats(
         pass
 
     return PlatformStats(
-        total_accounts=total_tenants, # Renamed to accounts
+        total_accounts=total_accounts, # Renamed to accounts
         total_users=total_users,
         total_projects=total_projects,
         verified_users=verified_users,
@@ -742,10 +723,10 @@ async def get_database_health(
     Admin only.
     Tests database connections for all projects across all tenants.
     """
-    tenant_store = get_account_store()
+    account_store = get_account_store()
     project_store = get_project_store()
 
-    if not tenant_store or not project_store:
+    if not account_store or not project_store:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Stores not initialized",
@@ -753,7 +734,6 @@ async def get_database_health(
 
     from datetime import datetime
 
-    from app.core.account_store import MongoDBAccountStore
     from app.core.db_test import (test_mongodb_connection,
                                   test_postgres_connection)
     from app.core.encryption import decrypt_database_url
@@ -761,10 +741,7 @@ async def get_database_health(
     health_statuses = []
 
     # Get all tenants
-    if isinstance(tenant_store, MongoDBAccountStore):
-        all_tenants = await tenant_store._list_accounts_async()
-    else:
-        all_tenants = tenant_store.list_accounts()
+    all_accounts = await account_store.list_accounts_async()
 
     # Get all projects
     all_projects = await project_store.list_all_projects_async()
@@ -777,8 +754,8 @@ async def get_database_health(
         projects_by_account[project.account_id].append(project)
 
     # Test connections for each account's projects
-    for tenant in all_tenants:
-        tenant_projects = projects_by_account.get(tenant.id, [])
+    for account in all_accounts:
+        tenant_projects = projects_by_account.get(account.id, [])
 
         # Aggregate health status across all projects for this tenant
         postgres_status = "unknown"
@@ -816,8 +793,8 @@ async def get_database_health(
             mongodb_status = "no_projects"
 
         health_statuses.append(HealthStatus(
-            account_id=tenant.id,
-            account_name=tenant.name,
+            account_id=account.id,
+            account_name=account.name,
             postgres_status=postgres_status,
             mongodb_status=mongodb_status,
             last_checked=datetime.utcnow(),

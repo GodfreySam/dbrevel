@@ -56,24 +56,14 @@ async def ensure_admin_user():
 
     # Create account for admin user (use async version to avoid event loop issues)
     api_key = generate_account_key()
-    if hasattr(account_store, '_create_account_async'):
-        admin_account = await account_store._create_account_async(
-            name="Freyman Technology",
-            api_key=api_key,
-            postgres_url="",
-            mongodb_url="",
-            gemini_mode="platform",
-            gemini_api_key=None,
-        )
-    else:
-        admin_account = account_store.create_account(
-            name="Freyman Technology",
-            api_key=api_key,
-            postgres_url="",
-            mongodb_url="",
-            gemini_mode="platform",
-            gemini_api_key=None,
-        )
+    admin_account = await account_store.create_account_async(
+        name="Freyman Technology",
+        api_key=api_key,
+        postgres_url="",
+        mongodb_url="",
+        gemini_mode="platform",
+        gemini_api_key=None,
+    )
 
     if not admin_account or not admin_account.id:
         print(f"✗ Failed to create account for admin user")
@@ -105,8 +95,8 @@ async def ensure_admin_user():
             print(
                 f"ℹ️  Admin user {admin_email} already exists (created by another process)")
             # Clean up the extra tenant we created
-            account_store.delete_account(admin_account.id)
+            await account_store.delete_account_async(admin_account.id)
         else:
             print(f"✗ Failed to create admin user: {e}")
             # Clean up tenant if user creation failed
-            account_store.delete_account(admin_account.id)
+            await account_store.delete_account_async(admin_account.id)

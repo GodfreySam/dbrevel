@@ -11,9 +11,12 @@ import logging
 import re
 from typing import Any, Dict, List
 
-from app.core.config import settings
+from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
+                                 InvalidJSONError, InvalidQueryPlanError,
+                                 MissingBYOApiKeyError)
 from app.core.retry import retry_with_exponential_backoff
 from app.core.accounts import AccountConfig
+from app.core.config import settings
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
 from google.genai import Client
@@ -56,8 +59,8 @@ class GeminiEngine:
             QueryPlan with generated queries
 
         Raises:
-            ValueError: If Gemini response is invalid
-            Exception: If Gemini API fails after all retries
+            GeminiResponseError: If Gemini response is invalid
+            GeminiAPIError: If Gemini API fails after all retries
         """
 
         prompt = self._build_query_prompt(intent, schemas, security_ctx)
@@ -83,22 +86,22 @@ class GeminiEngine:
             )
         except Exception as e:
             logger.error(f"Gemini API call failed after retries: {e}", exc_info=True)
-            raise
+            raise GeminiAPIError(f"Gemini API call failed after retries: {e}")
 
         # Extract text from response (new API structure)
         # response.candidates[0].content.parts[0].text
         if not response.candidates:
-            raise ValueError("No candidates in Gemini response")
+            raise GeminiResponseError("No candidates in Gemini response")
 
         candidate = response.candidates[0]
         if not candidate.content or not candidate.content.parts:
-            raise ValueError("No content parts in Gemini response")
+            raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
         text_parts = [
             part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise ValueError("No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         # Join text parts, preserving newlines might help with JSON structure
         response_text = "\n".join(text_parts).strip()
@@ -151,7 +154,7 @@ class GeminiEngine:
         try:
             plan = QueryPlan(**plan_data)
         except Exception as e:
-            raise ValueError(
+            raise InvalidQueryPlanError(
                 f"Failed to create QueryPlan from Gemini response. "
                 f"Data: {plan_data} "
                 f"Error: {str(e)}"
@@ -199,17 +202,17 @@ Return JSON:
 
         # Extract text from response (new API structure)
         if not response.candidates:
-            raise ValueError("No candidates in Gemini response")
+            raise GeminiResponseError("No candidates in Gemini response")
 
         candidate = response.candidates[0]
         if not candidate.content or not candidate.content.parts:
-            raise ValueError("No content parts in Gemini response")
+            raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
         text_parts = [
             part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise ValueError("No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         response_text = "\n".join(text_parts).strip()
 
@@ -249,7 +252,7 @@ Return JSON:
         # Find the start of JSON (first opening brace)
         json_start = response_text.find('{')
         if json_start == -1:
-            raise ValueError(
+            raise InvalidJSONError(
                 f"No JSON object found in response: {response_text[:200]}...")
 
         # Extract just the first complete JSON object by finding balanced braces
@@ -420,7 +423,7 @@ Return JSON:
             except Exception as inner_e:
                 logger.error(f"Aggressive extraction also failed: {inner_e}")
 
-            raise ValueError(
+            raise InvalidJSONError(
                 f"Failed to parse JSON from Gemini response. "
                 f"Error: {str(e)}. "
                 f"Response length: {len(response_text)} chars. "
@@ -493,7 +496,7 @@ def build_gemini_engine(tenant: AccountConfig) -> GeminiEngine:
 
     if tenant.gemini_mode == "byo":
         if not tenant.gemini_api_key:
-            raise ValueError(
+            raise MissingBYOApiKeyError(
                 "Account is configured for BYO Gemini but no API key is set")
         api_key = tenant.gemini_api_key
     else:

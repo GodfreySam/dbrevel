@@ -53,19 +53,6 @@ def _load_default_account() -> None:
 _load_default_account()
 
 
-def get_account_by_api_key(api_key: str) -> AccountConfig:
-    """Lookup account configuration by API key (sync version for backward compatibility)."""
-    # Try in-memory store first (backward compatibility)
-    account = ACCOUNTS_BY_KEY.get(api_key)
-    if account:
-        return account
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid account API key",
-    )
-
-
 async def get_account_by_api_key_async(api_key: str) -> AccountConfig:
     """
     Lookup account configuration by API key.
@@ -95,10 +82,8 @@ async def get_account_by_api_key_async(api_key: str) -> AccountConfig:
 
     account_store = get_account_store()
     parent_account = None
-    if account_store and hasattr(account_store, '_get_by_id_async'):
-        parent_account = await account_store._get_by_id_async(project.account_id)
-    elif account_store:
-        parent_account = account_store.get_by_id(project.account_id)
+    if account_store:
+        parent_account = await account_store.get_by_id_async(project.account_id)
 
     # Build AccountConfig from project data
     return AccountConfig(

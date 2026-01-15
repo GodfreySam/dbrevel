@@ -37,12 +37,6 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8,
                           description="Password (min 8 characters)")
     name: str = Field(..., description="Account/organization name")
-    postgres_url: Optional[str] = Field(
-        None, description="PostgreSQL connection URL (optional, can add later)"
-    )
-    mongodb_url: Optional[str] = Field(
-        None, description="MongoDB connection URL (optional, can add later)"
-    )
 
     model_config = {
         "json_schema_extra": {
@@ -50,7 +44,6 @@ class UserCreate(BaseModel):
                 "email": "user@example.com",
                 "password": "securepassword123",
                 "name": "Acme Corp",
-                "postgres_url": "postgresql://user:pass@localhost:5432/db",
             }
         }
     }

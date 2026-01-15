@@ -3,21 +3,21 @@
 import logging
 from typing import Optional
 
-from bson import ObjectId
 import app.core.email_verification as email_verification_module
 import app.core.password_reset as password_reset_module
 import app.core.user_store as user_store_module
+from app.core.account_keys import generate_account_key
+from app.core.account_store import get_account_store
 from app.core.auth import (create_access_token, get_current_user,
                            hash_password, verify_password)
 from app.core.config import settings
 from app.core.email_service import get_email_service
-from app.core.account_keys import generate_account_key
-from app.core.account_store import get_account_store
 from app.models.user import (EmailVerificationRequest,
                              EmailVerificationResponse, PasswordChange,
                              PasswordReset, PasswordResetRequest,
                              PasswordResetResponse, TokenResponse, User,
                              UserCreate, UserLogin, UserResponse)
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 router = APIRouter()
@@ -69,14 +69,16 @@ async def register(request: UserCreate):
 
         # Verify account was created successfully
         if not account or not account.id:
-            logging.error(f"Registration: Failed to create account for user {request.email}")
+            logging.error(
+                f"Registration: Failed to create account for user {request.email}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create account",
             )
 
         account_id_for_cleanup = account.id
-        logging.info(f"Registration: Created account_id={account.id} for user {request.email}")
+        logging.info(
+            f"Registration: Created account_id={account.id} for user {request.email}")
 
         import asyncio
         verify_account = None
@@ -86,7 +88,8 @@ async def register(request: UserCreate):
         for attempt in range(max_retries):
             verify_account = await account_store.get_by_id_async(account.id)
             if verify_account:
-                logging.info(f"Registration: Verified account_id={account.id} exists in database (attempt {attempt + 1})")
+                logging.info(
+                    f"Registration: Verified account_id={account.id} exists in database (attempt {attempt + 1})")
                 break
 
             if attempt < max_retries - 1:
@@ -100,13 +103,15 @@ async def register(request: UserCreate):
             # Log all available accounts for debugging
             try:
                 all_accounts = await account_store.list_accounts_async()
-                available_ids = [t.id for t in all_accounts] if all_accounts else []
+                available_ids = [
+                    t.id for t in all_accounts] if all_accounts else []
                 logging.error(
                     f"Registration: Account {account.id} was created but cannot be retrieved after {max_retries} attempts. "
                     f"Available account IDs in database: {available_ids}"
                 )
             except Exception as e:
-                logging.error(f"Registration: Could not list accounts for debugging: {e}")
+                logging.error(
+                    f"Registration: Could not list accounts for debugging: {e}")
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -125,11 +130,14 @@ async def register(request: UserCreate):
             )
             try:
                 await account_store.delete_account_async(account_id_for_cleanup)
-                logging.info(f"Registration: Cleaned up account {account_id_for_cleanup}")
+                logging.info(
+                    f"Registration: Cleaned up account {account_id_for_cleanup}")
             except Exception as cleanup_error:
-                logging.error(f"Registration: Failed to clean up account {account_id_for_cleanup}: {cleanup_error}")
+                logging.error(
+                    f"Registration: Failed to clean up account {account_id_for_cleanup}: {cleanup_error}")
 
-        logging.error(f"Registration: Failed to create account for user {request.email}: {e}")
+        logging.error(
+            f"Registration: Failed to create account for user {request.email}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create account: {str(e)}",
@@ -142,10 +150,12 @@ async def register(request: UserCreate):
             password=request.password,
             account_id=account.id,
         )
-        logging.info(f"Registration: Created user {user.email} with account_id={user.account_id}")
+        logging.info(
+            f"Registration: Created user {user.email} with account_id={user.account_id}")
     except Exception as e:
         # If user creation fails, clean up account
-        logging.error(f"Registration: User creation failed for {request.email}, cleaning up account {account.id}: {e}")
+        logging.error(
+            f"Registration: User creation failed for {request.email}, cleaning up account {account.id}: {e}")
         await account_store.delete_account_async(account.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -153,16 +163,16 @@ async def register(request: UserCreate):
         )
 
     # Create default project for the user with API key
-    from app.core.project_store import get_project_store, generate_project_id
+    from app.core.project_store import generate_project_id, get_project_store
 
     project_store = get_project_store()
     if project_store:
         try:
             project_api_key = generate_account_key()
 
-            # Use demo database URLs as defaults if user doesn't provide their own
-            default_postgres_url = request.postgres_url or settings.DEMO_POSTGRES_URL
-            default_mongodb_url = request.mongodb_url or settings.DEMO_MONGODB_URL
+            # Use demo database URLs as defaults for the first project
+            default_postgres_url = settings.DEMO_POSTGRES_URL
+            default_mongodb_url = settings.DEMO_MONGODB_URL
 
             default_project = await project_store.create_project_async(
                 name="My First Project",
@@ -173,9 +183,11 @@ async def register(request: UserCreate):
                 project_id=generate_project_id(),
             )
             # Log the project creation for debugging
-            logging.info(f"Created default project for user {user.email}: {default_project.id}")
+            logging.info(
+                f"Created default project for user {user.email}: {default_project.id}")
         except Exception as e:
-            logging.error(f"Failed to create default project for user {user.email}: {e}")
+            logging.error(
+                f"Failed to create default project for user {user.email}: {e}")
             # Don't fail registration if project creation fails
             # User can create projects later via dashboard
 
@@ -223,7 +235,8 @@ async def login(request: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    logging.info(f"Login: User {user.email} authenticated, user_id={user.id}, account_id={user.account_id}")
+    logging.info(
+        f"Login: User {user.email} authenticated, user_id={user.id}, account_id={user.account_id}")
 
     # Check if email is verified
     if not user.email_verified:
@@ -239,7 +252,8 @@ async def login(request: UserLogin):
             detail="Account store not initialized. Please restart the server.",
         )
 
-    logging.info(f"Login: Looking up account_id={user.account_id} for user {user.email}")
+    logging.info(
+        f"Login: Looking up account_id={user.account_id} for user {user.email}")
 
     if not user.account_id:
         logging.error(f"Login: User {user.email} has no account_id assigned!")
@@ -255,7 +269,8 @@ async def login(request: UserLogin):
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            available_ids = [
+                t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"Login: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
                 f"Available account IDs in database: {available_ids}"
@@ -329,14 +344,16 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            available_ids = [
+                t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"get_current_user_info: Account not found for user {current_user.email} "
                 f"(user_id={current_user.id}, account_id={current_user.account_id}). "
                 f"Available account IDs in database: {available_ids}"
             )
         except Exception as e:
-            logging.error(f"get_current_user_info: Could not list accounts for debugging: {e}")
+            logging.error(
+                f"get_current_user_info: Could not list accounts for debugging: {e}")
 
         error_detail = (
             f"Account not found for user account. "
@@ -437,7 +454,8 @@ async def verify_email(request: EmailVerificationRequest):
         )
 
     # Mark email as verified
-    logging.info(f"verify_email: Marking email as verified for user {user.email} (user_id={user.id})")
+    logging.info(
+        f"verify_email: Marking email as verified for user {user.email} (user_id={user.id})")
     verification_success = await user_store.mark_email_verified(user.id)
     if not verification_success:
         logging.error(
@@ -463,7 +481,8 @@ async def verify_email(request: EmailVerificationRequest):
     refreshed_user = None
     max_retries = 3
     for attempt in range(max_retries):
-        logging.info(f"verify_email: Refreshing user object for {user_email_for_logging} (user_id={user_id_for_refresh}) - attempt {attempt + 1}")
+        logging.info(
+            f"verify_email: Refreshing user object for {user_email_for_logging} (user_id={user_id_for_refresh}) - attempt {attempt + 1}")
         refreshed_user = await user_store.get_by_id(user_id_for_refresh)
         if refreshed_user and refreshed_user.email_verified:
             logging.info(
@@ -471,10 +490,12 @@ async def verify_email(request: EmailVerificationRequest):
             )
             break
         if attempt < max_retries - 1:
-            await asyncio.sleep(0.2)  # Small delay to allow MongoDB write to propagate
+            # Small delay to allow MongoDB write to propagate
+            await asyncio.sleep(0.2)
 
     if not refreshed_user:
-        logging.error(f"verify_email: User {request.email} (id={user_id_for_refresh}) not found after verification!")
+        logging.error(
+            f"verify_email: User {request.email} (id={user_id_for_refresh}) not found after verification!")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found after verification",
@@ -513,7 +534,8 @@ async def verify_email(request: EmailVerificationRequest):
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            available_ids = [
+                t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"verify_email: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
                 f"Available account IDs: {available_ids}"
@@ -534,7 +556,8 @@ async def verify_email(request: EmailVerificationRequest):
             detail=error_detail,
         )
 
-    logging.info(f"verify_email: Account found for user {user.email}. Generating JWT token.")
+    logging.info(
+        f"verify_email: Account found for user {user.email}. Generating JWT token.")
 
     # Generate JWT token with user role
     access_token = create_access_token(user.id, user.email, user.role)
@@ -828,7 +851,8 @@ async def debug_user_state(
         # Get all accounts for debugging
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_account_ids = [t.id for t in all_accounts] if all_accounts else []
+            available_account_ids = [
+                t.id for t in all_accounts] if all_accounts else []
         except Exception as e:
             logging.error(f"Could not list accounts: {e}")
 

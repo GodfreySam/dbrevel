@@ -1,27 +1,25 @@
 """Account management API endpoints."""
 
+from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, status, Depends
-from app.core.account_store import get_account_store
-from app.core.account_keys import generate_account_key
-from app.core.encryption import mask_database_url
-from app.models.account import (
-    AccountCreateRequest,
-    AccountUpdateRequest,
-    AccountResponse,
-    AccountListResponse,
-    ApiKeyRotateResponse,
-)
-from app.core.accounts import AccountConfig, get_account_config, get_account_config_required
-from app.core.auth import get_current_user, get_current_user_optional, get_current_admin
-from app.core.db_test import test_postgres_connection, test_mongodb_connection
-from app.models.account import (
-    DatabaseConnectionTestRequest,
-    DatabaseConnectionTestResponse,
-    DatabaseUpdateRequest,
-)
-from app.models.user import User
+
 from app.adapters.factory import adapter_factory
+from app.core.account_keys import generate_account_key
+from app.core.account_store import get_account_store
+from app.core.accounts import (AccountConfig, get_account_config,
+                               get_account_config_required)
+from app.core.auth import (get_current_admin, get_current_user,
+                           get_current_user_optional)
+from app.core.db_test import test_mongodb_connection, test_postgres_connection
+from app.core.encryption import mask_database_url
+from app.models.account import (AccountApiKeyRotateResponse,
+                                AccountConnectionTestRequest,
+                                AccountConnectionTestResponse,
+                                AccountCreateRequest, AccountListResponse,
+                                AccountResponse, AccountUpdateRequest,
+                                DatabaseUpdateRequest)
+from app.models.user import User
+from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -181,7 +179,7 @@ async def delete_account(
     return None
 
 
-@router.post("/{account_id}/rotate-key", response_model=ApiKeyRotateResponse)
+@router.post("/{account_id}/rotate-key", response_model=AccountApiKeyRotateResponse)
 async def rotate_api_key(
     account_id: str,
     admin: User = Depends(get_current_admin),
@@ -217,10 +215,10 @@ async def rotate_api_key(
             detail="Failed to rotate API key",
         )
 
-    return ApiKeyRotateResponse(
+    return AccountApiKeyRotateResponse(
         account_id=account_id,
         new_api_key=new_api_key,
-        message="API key rotated successfully. Old key is now invalid.",
+        rotated_at=datetime.utcnow(),
     )
 
 
@@ -255,7 +253,8 @@ async def get_current_account_info_jwt(
     account_store = get_account_store()
 
     # Log for debugging
-    logging.info(f"Fetching account info for user {current_user.id} with account_id={current_user.account_id}")
+    logging.info(
+        f"Fetching account info for user {current_user.id} with account_id={current_user.account_id}")
 
     if not current_user.account_id:
         raise HTTPException(
@@ -270,7 +269,8 @@ async def get_current_account_info_jwt(
         # List all available accounts for debugging (in development only)
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [t.id for t in all_accounts] if all_accounts else []
+            available_ids = [
+                t.id for t in all_accounts] if all_accounts else []
         except Exception as e:
             logging.warning(f"Could not list accounts for debugging: {e}")
             available_ids = []
@@ -304,9 +304,9 @@ async def get_current_account_info_jwt(
     )
 
 
-@router.post("/me/test-connection", response_model=DatabaseConnectionTestResponse)
+@router.post("/me/test-connection", response_model=AccountConnectionTestResponse)
 async def test_database_connection(
-    request: DatabaseConnectionTestRequest,
+    request: AccountConnectionTestRequest,
     current_user: Optional[User] = Depends(get_current_user_optional),
     account: Optional[AccountConfig] = Depends(get_account_config),
 ):
@@ -334,7 +334,7 @@ async def test_database_connection(
             detail="Authentication required",
         )
 
-    results = DatabaseConnectionTestResponse()
+    results = AccountConnectionTestResponse()
 
     # Test PostgreSQL if provided
     if request.postgres_url:

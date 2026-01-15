@@ -3,22 +3,17 @@
 from datetime import datetime
 from typing import List
 
-from app.core.auth import get_current_user
-from app.core.encryption import decrypt_database_url, mask_database_url
-from app.core.project_store import get_project_store, generate_project_id
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
-from app.models.project import (
-    ApiKeyRevealResponse,
-    ApiKeyRotateResponse,
-    DatabaseConnectionTestRequest,
-    DatabaseConnectionTestResponse,
-    Project,
-    ProjectCreateRequest,
-    ProjectListResponse,
-    ProjectResponse,
-    ProjectUpdateRequest,
-)
+from app.core.auth import get_current_user
+from app.core.encryption import decrypt_database_url, mask_database_url
+from app.core.project_store import generate_project_id, get_project_store
+from app.models.project import (Project, ProjectApiKeyRevealResponse,
+                                ProjectApiKeyRotateResponse,
+                                ProjectConnectionTestRequest,
+                                ProjectConnectionTestResponse,
+                                ProjectCreateRequest, ProjectListResponse,
+                                ProjectResponse, ProjectUpdateRequest)
 from app.models.user import User
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -62,8 +57,10 @@ async def create_project(
         name=project.name,
         account_id=project.account_id,
         api_key=project.api_key,  # Show full API key on creation
-        postgres_url=mask_database_url(decrypt_database_url(project.postgres_url)),
-        mongodb_url=mask_database_url(decrypt_database_url(project.mongodb_url)),
+        postgres_url=mask_database_url(
+            decrypt_database_url(project.postgres_url)),
+        mongodb_url=mask_database_url(
+            decrypt_database_url(project.mongodb_url)),
         created_at=project.created_at,
         updated_at=project.updated_at,
         is_active=project.is_active,
@@ -136,8 +133,10 @@ async def get_project(
         name=project.name,
         account_id=project.account_id,
         api_key="***",  # Mask API key on retrieval for security
-        postgres_url=mask_database_url(decrypt_database_url(project.postgres_url)),
-        mongodb_url=mask_database_url(decrypt_database_url(project.mongodb_url)),
+        postgres_url=mask_database_url(
+            decrypt_database_url(project.postgres_url)),
+        mongodb_url=mask_database_url(
+            decrypt_database_url(project.mongodb_url)),
         created_at=project.created_at,
         updated_at=project.updated_at,
         is_active=project.is_active,
@@ -253,7 +252,7 @@ async def delete_project(
         )
 
 
-@router.post("/{project_id}/rotate-key", response_model=ApiKeyRotateResponse)
+@router.post("/{project_id}/rotate-key", response_model=ProjectApiKeyRotateResponse)
 async def rotate_project_api_key(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -298,14 +297,14 @@ async def rotate_project_api_key(
             detail="Failed to rotate API key",
         )
 
-    return ApiKeyRotateResponse(
+    return ProjectApiKeyRotateResponse(
         project_id=project_id,
         new_api_key=new_api_key,
         rotated_at=datetime.utcnow(),
     )
 
 
-@router.get("/{project_id}/api-key", response_model=ApiKeyRevealResponse)
+@router.get("/{project_id}/api-key", response_model=ProjectApiKeyRevealResponse)
 async def reveal_project_api_key(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -339,15 +338,15 @@ async def reveal_project_api_key(
         )
 
     # Return the actual API key (stored in plain text in database for lookup)
-    return ApiKeyRevealResponse(
+    return ProjectApiKeyRevealResponse(
         project_id=project_id,
         api_key=project.api_key,
     )
 
 
-@router.post("/test-connection", response_model=DatabaseConnectionTestResponse)
+@router.post("/test-connection", response_model=ProjectConnectionTestResponse)
 async def test_database_connections(
-    request: DatabaseConnectionTestRequest,
+    request: ProjectConnectionTestRequest,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -356,7 +355,8 @@ async def test_database_connections(
     If project_id is provided, uses the project's saved database URLs.
     Otherwise, uses the provided postgres_url and/or mongodb_url directly.
     """
-    from app.core.db_test import test_postgres_connection, test_mongodb_connection
+    from app.core.db_test import (test_mongodb_connection,
+                                  test_postgres_connection)
 
     project_store = get_project_store()
     postgres_url = request.postgres_url
@@ -393,7 +393,8 @@ async def test_database_connections(
             except Exception as e:
                 # If decryption fails, log and skip
                 import logging
-                logging.warning(f"Failed to decrypt postgres_url for project {project.id}: {e}")
+                logging.warning(
+                    f"Failed to decrypt postgres_url for project {project.id}: {e}")
                 postgres_url = None
         if project.mongodb_url and project.mongodb_url.strip() and not project.mongodb_url.startswith("***"):
             try:
@@ -401,10 +402,11 @@ async def test_database_connections(
             except Exception as e:
                 # If decryption fails, log and skip
                 import logging
-                logging.warning(f"Failed to decrypt mongodb_url for project {project.id}: {e}")
+                logging.warning(
+                    f"Failed to decrypt mongodb_url for project {project.id}: {e}")
                 mongodb_url = None
 
-    results = DatabaseConnectionTestResponse()
+    results = ProjectConnectionTestResponse()
 
     # Test PostgreSQL if URL is available
     if postgres_url:

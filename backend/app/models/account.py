@@ -1,8 +1,24 @@
 """Pydantic models for account management."""
 
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
+
+
+class Account(BaseModel):
+    """Account database model."""
+
+    id: str = Field(..., description="Account ID")
+    name: str = Field(..., description="Account name")
+    api_key: str = Field(..., description="Account API key")
+    postgres_url: str = Field(..., description="PostgreSQL connection URL")
+    mongodb_url: str = Field(..., description="MongoDB connection URL")
+    gemini_mode: str = Field(default="platform", description="Gemini mode")
+    gemini_api_key: Optional[str] = Field(None, description="Gemini API key")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    is_active: bool = Field(default=True, description="Active status")
 
 
 class AccountCreateRequest(BaseModel):
@@ -48,8 +64,8 @@ class AccountResponse(BaseModel):
     id: str
     name: str
     api_key: str  # Only returned on creation/rotation
-    postgres_url: str
-    mongodb_url: str
+    postgres_url: str  # Masked for security
+    mongodb_url: str  # Masked for security
     gemini_mode: str
     gemini_api_key: Optional[str] = None
 
@@ -86,25 +102,25 @@ class AccountListResponse(BaseModel):
     }
 
 
-class ApiKeyRotateResponse(BaseModel):
+class AccountApiKeyRotateResponse(BaseModel):
     """Response model for API key rotation."""
 
     account_id: str
     new_api_key: str
-    message: str = "API key rotated successfully. Old key is now invalid."
+    rotated_at: datetime
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "account_id": "account_1",
                 "new_api_key": "dbrevel_new_key_123...",
-                "message": "API key rotated successfully. Old key is now invalid.",
+                "rotated_at": "2024-01-01T12:00:00Z",
             }
         }
     }
 
 
-class DatabaseConnectionTestRequest(BaseModel):
+class AccountConnectionTestRequest(BaseModel):
     """Request model for testing database connections."""
 
     postgres_url: Optional[str] = Field(
@@ -124,7 +140,7 @@ class DatabaseConnectionTestRequest(BaseModel):
     }
 
 
-class DatabaseConnectionTestResponse(BaseModel):
+class AccountConnectionTestResponse(BaseModel):
     """Response model for database connection test results."""
 
     postgres: Optional[Dict[str, Any]] = None
@@ -155,4 +171,12 @@ class DatabaseUpdateRequest(BaseModel):
     postgres_url: Optional[str] = Field(
         None, description="New PostgreSQL connection URL"
     )
-    mongodb_url: Optional[str] = Field(None, description="New MongoDB connection URL")
+    mongodb_url: Optional[str] = Field(
+        None, description="New MongoDB connection URL")
+
+
+class AccountApiKeyRevealResponse(BaseModel):
+    """Response model for API key reveal."""
+
+    account_id: str
+    api_key: str

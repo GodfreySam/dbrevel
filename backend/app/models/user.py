@@ -14,6 +14,7 @@ class User(BaseModel):
     password_hash: str
     account_id: str
     created_at: datetime
+    full_name: Optional[str] = None
     last_login: Optional[datetime] = None
     email_verified: bool = False
     role: str = "user"  # "user" or "admin"
@@ -24,6 +25,7 @@ class User(BaseModel):
                 "id": "user_1",
                 "email": "user@example.com",
                 "account_id": "acc_1",
+                "full_name": "John Doe",
                 "created_at": "2024-01-01T00:00:00Z",
             }
         }
@@ -36,14 +38,35 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8,
                           description="Password (min 8 characters)")
-    name: str = Field(..., description="Account/organization name")
+    name: str = Field(..., min_length=1, max_length=100,
+                      description="Account/organization name")
+    full_name: Optional[str] = Field(None, description="User's full name")
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "email": "user@example.com",
                 "password": "securepassword123",
+                "full_name": "John Doe",
                 "name": "Acme Corp",
+            }
+        }
+    }
+
+
+class UserInviteRequest(BaseModel):
+    """Request model for inviting a user to an existing account."""
+
+    email: EmailStr = Field(..., description="User email address")
+    role: str = Field(default="user", description="User role (user/admin)")
+    full_name: Optional[str] = Field(None, description="User's full name")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "colleague@example.com",
+                "role": "user",
+                "full_name": "Jane Doe",
             }
         }
     }
@@ -60,6 +83,24 @@ class UserLogin(BaseModel):
             "example": {
                 "email": "user@example.com",
                 "password": "securepassword123",
+            }
+        }
+    }
+
+
+class UserUpdate(BaseModel):
+    """Request model for updating user details."""
+
+    email: Optional[EmailStr] = Field(None, description="New email address")
+    role: Optional[str] = Field(None, description="New role (admin only)")
+    full_name: Optional[str] = Field(None, description="Update full name")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "full_name": "Jane Doe",
+                "email": "newemail@example.com",
+                "role": "admin",
             }
         }
     }
@@ -132,6 +173,7 @@ class UserResponse(BaseModel):
     id: str
     email: EmailStr
     account_id: str
+    full_name: Optional[str] = None
     account_name: str
     projects_count: Optional[int] = None
     created_at: datetime
@@ -145,8 +187,36 @@ class UserResponse(BaseModel):
                 "id": "user_1",
                 "email": "user@example.com",
                 "account_id": "acc_1",
+                "full_name": "John Doe",
                 "account_name": "Acme Corp",
                 "created_at": "2024-01-01T00:00:00Z",
+            }
+        }
+    }
+
+
+class UserListResponse(BaseModel):
+    """Response model for listing users."""
+
+    id: str
+    email: EmailStr
+    account_id: str
+    full_name: Optional[str] = None
+    role: str
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    email_verified: bool
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "user_1",
+                "email": "user@example.com",
+                "full_name": "John Doe",
+                "account_id": "acc_1",
+                "role": "user",
+                "created_at": "2024-01-01T00:00:00Z",
+                "email_verified": True,
             }
         }
     }

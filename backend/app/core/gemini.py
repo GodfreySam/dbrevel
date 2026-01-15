@@ -11,12 +11,12 @@ import logging
 import re
 from typing import Any, Dict, List
 
+from app.core.accounts import AccountConfig
+from app.core.config import settings
 from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
                                  InvalidJSONError, InvalidQueryPlanError,
                                  MissingBYOApiKeyError)
 from app.core.retry import retry_with_exponential_backoff
-from app.core.accounts import AccountConfig
-from app.core.config import settings
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
 from google.genai import Client
@@ -67,7 +67,8 @@ class GeminiEngine:
 
         # Wrap Gemini API call with retry logic
         async def _call_gemini():
-            logger.debug(f"Calling Gemini API for query generation. Intent: {intent[:100]}...")
+            logger.debug(
+                f"Calling Gemini API for query generation. Intent: {intent[:100]}...")
             return await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
@@ -82,10 +83,12 @@ class GeminiEngine:
                 max_retries=3,
                 initial_delay=1.0,
                 max_delay=10.0,
-                exceptions=(ConnectionError, TimeoutError, OSError),  # Network-related errors
+                exceptions=(ConnectionError, TimeoutError,
+                            OSError),  # Network-related errors
             )
         except Exception as e:
-            logger.error(f"Gemini API call failed after retries: {e}", exc_info=True)
+            logger.error(
+                f"Gemini API call failed after retries: {e}", exc_info=True)
             raise GeminiAPIError(f"Gemini API call failed after retries: {e}")
 
         # Extract text from response (new API structure)
@@ -101,7 +104,8 @@ class GeminiEngine:
         text_parts = [
             part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError("No text content in Gemini response parts")
+            raise GeminiResponseError(
+                "No text content in Gemini response parts")
 
         # Join text parts, preserving newlines might help with JSON structure
         response_text = "\n".join(text_parts).strip()
@@ -212,7 +216,8 @@ Return JSON:
         text_parts = [
             part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError("No text content in Gemini response parts")
+            raise GeminiResponseError(
+                "No text content in Gemini response parts")
 
         response_text = "\n".join(text_parts).strip()
 
@@ -458,7 +463,7 @@ Generate optimized database query from user intent.
 SCHEMAS:
 {schemas_str}
 
-CONTEXT: role={security_ctx.role}, org={security_ctx.org_id}, perms={security_ctx.permissions}
+CONTEXT: role={security_ctx.role}, org={security_ctx.account_id}, perms={security_ctx.permissions}
 FILTERS: {json.dumps(security_ctx.row_filters, separators=(",", ":"))}
 MASKS: {json.dumps(security_ctx.field_masks, separators=(",", ":"))}
 

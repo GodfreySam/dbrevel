@@ -6,19 +6,10 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { apiFetch, apiFetchJson } from "../utils/api";
 import { parseApiError } from "../utils/handleApiError";
+import { apiFetchJson, apiFetch } from "../utils/api";
+import { User } from "../types/api";
 
-interface User {
-	id: string;
-	email: string;
-	account_id: string;
-	account_name: string;
-	created_at: string;
-	last_login?: string;
-	email_verified?: boolean;
-	role?: string; // "user" or "admin"
-}
 
 interface AuthContextType {
 	user: User | null;
@@ -61,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					// Validate token by fetching user info
 					// This ensures the token is still valid and user state is up-to-date
 					try {
-						const { apiFetchJson } = await import("../utils/api");
 						const userData = await apiFetchJson<User>(
 							"/auth/me",
 							{
@@ -171,7 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 		// Validate the new token immediately to ensure it works
 		try {
-			const { apiFetchJson } = await import("../utils/api");
 			const validatedUser = await apiFetchJson<User>(
 				"/auth/me",
 				{
@@ -226,7 +215,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		if (!token) return;
 
 		try {
-			const { apiFetchJson } = await import("../utils/api");
 			const userData = await apiFetchJson<User>(
 				"/auth/me",
 				{

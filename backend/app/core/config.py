@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     DEMO_ACCOUNT_ENABLED: bool = True  # Enable/disable automatic demo account creation on startup
 
     # Encryption (for database connection strings)
-    ENCRYPTION_KEY: str = "your-encryption-key-here-generate-a-32-byte-key"  # Override in .env
+    ENCRYPTION_KEY: str  # Override in .env
 
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"  # Override in .env

@@ -21,16 +21,11 @@ class QueryRequest(BaseModel):
     @field_validator('intent')
     @classmethod
     def validate_intent(cls, v: str) -> str:
-        """Validate intent field to prevent abuse
+        """
+        Validate intent field to prevent abuse.
 
-        Args:
-            v: Intent string
-
-        Returns:
-            Validated intent string
-
-        Raises:
-            ValueError: If intent is invalid
+        NOTE: This is a basic blacklist-based protection and should be improved
+        with more sophisticated prompt injection detection mechanisms.
         """
         if not v or not v.strip():
             raise ValueError("Intent cannot be empty or whitespace only")
@@ -42,10 +37,18 @@ class QueryRequest(BaseModel):
         suspicious_patterns = [
             "ignore all",
             "ignore previous",
+            "ignore the above",
+            "ignore your instructions",
+            "ignore your previous instructions",
+            "forget your instructions",
+            "forget what you are doing",
+            "do not follow your instructions",
             "disregard",
             "system:",
             "assistant:",
             "you are now",
+            "you are a new assistant",
+            "your new instructions are",
             "pretend you are",
         ]
 
@@ -109,9 +112,9 @@ class QueryResult(BaseModel):
 
 class SecurityContext(BaseModel):
     """User security context"""
-    user_id: int
+    user_id: str
     role: str
-    org_id: Optional[int] = None
+    account_id: Optional[str] = None
     permissions: List[str] = []
     row_filters: Dict[str, Dict[str, Any]] = {}
     field_masks: Dict[str, List[str]] = {}

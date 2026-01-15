@@ -1,5 +1,6 @@
-from typing import Dict
+import asyncio
 import logging
+from typing import Dict
 
 from app.adapters.base import DatabaseAdapter
 from app.adapters.mongodb import MongoDBAdapter
@@ -38,13 +39,20 @@ class AdapterFactory:
         # PostgreSQL adapter - decrypt URL before using
         if account.postgres_url:
             try:
-                logger.info(f"Initializing PostgreSQL adapter for account {account.id}")
+                logger.info(
+                    f"Initializing PostgreSQL adapter for account {account.id}")
                 decrypted_pg_url = decrypt_database_url(account.postgres_url)
                 postgres = PostgresAdapter(decrypted_pg_url)
                 await postgres.connect()
                 await postgres.introspect_schema()
                 adapters["postgres"] = postgres
-                logger.info(f"✓ PostgreSQL adapter created for account {account.id}")
+                logger.info(
+                    f"✓ PostgreSQL adapter created for account {account.id}")
+            except (asyncio.TimeoutError, TimeoutError) as e:
+                # Handle timeouts gracefully without stack trace
+                error_msg = f"Connection timed out for PostgreSQL (Account {account.id})"
+                logger.warning(error_msg)
+                errors.append(("postgres", "timeout", str(e)))
             except ValueError as e:
                 # Decryption or validation error
                 error_msg = f"PostgreSQL configuration error for account {account.id}: {e}"
@@ -59,7 +67,8 @@ class AdapterFactory:
         # MongoDB adapter - decrypt URL before using
         if account.mongodb_url:
             try:
-                logger.info(f"Initializing MongoDB adapter for account {account.id}")
+                logger.info(
+                    f"Initializing MongoDB adapter for account {account.id}")
                 decrypted_mongo_url = decrypt_database_url(account.mongodb_url)
                 # Extract database name from URL
                 db_name = decrypted_mongo_url.split("/")[-1].split("?")[0]
@@ -70,7 +79,13 @@ class AdapterFactory:
                 await mongodb.connect()
                 await mongodb.introspect_schema()
                 adapters["mongodb"] = mongodb
-                logger.info(f"✓ MongoDB adapter created for account {account.id}")
+                logger.info(
+                    f"✓ MongoDB adapter created for account {account.id}")
+            except (asyncio.TimeoutError, TimeoutError) as e:
+                # Handle timeouts gracefully without stack trace
+                error_msg = f"Connection timed out for MongoDB (Account {account.id})"
+                logger.warning(error_msg)
+                errors.append(("mongodb", "timeout", str(e)))
             except ValueError as e:
                 # Decryption or validation error
                 error_msg = f"MongoDB configuration error for account {account.id}: {e}"
@@ -84,7 +99,8 @@ class AdapterFactory:
 
         # If no adapters were created successfully, raise an error
         if not adapters:
-            error_summary = "; ".join([f"{db}: {err}" for db, _, err in errors])
+            error_summary = "; ".join(
+                [f"{db}: {err}" for db, _, err in errors])
             raise RuntimeError(
                 f"Failed to create any database adapters for account {account.id}. "
                 f"Errors: {error_summary}"

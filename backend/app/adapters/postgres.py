@@ -23,6 +23,7 @@ class PostgresAdapter(DatabaseAdapter):
             min_size=2,
             max_size=10,
             command_timeout=60,
+            timeout=20,  # Explicit connection timeout
             statement_cache_size=0  # Required for pgbouncer compatibility
         )
 

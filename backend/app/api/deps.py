@@ -1,6 +1,7 @@
-from fastapi import Header, HTTPException, status
 from typing import Optional
+
 from app.models.query import SecurityContext
+from fastapi import Header, HTTPException, status
 
 
 async def get_security_context(
@@ -11,42 +12,42 @@ async def get_security_context(
     In production, this would validate JWT tokens and extract user info.
     For demo, we'll use simple token-based auth.
     """
-    
+
     # Demo mode - simple role extraction from header
     if not authorization:
         # Default viewer role for demo
         return SecurityContext(
-            user_id=1,
+            user_id="user_demo",
             role="viewer",
-            org_id=1,
+            account_id="account_demo",
             permissions=["read"],
             row_filters={},
             field_masks={}
         )
-        
+
     # Parse "Bearer <token>" format
     if authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")
-        
+
         # Demo tokens (in production, validate JWT properly)
         if token == "admin_token":
             return SecurityContext(
-                user_id=1,
+                user_id="user_admin",
                 role="admin",
-                org_id=1,
+                account_id="account_admin",
                 permissions=["read", "write", "delete"],
                 row_filters={},
                 field_masks={}
             )
         elif token == "viewer_token":
             return SecurityContext(
-                user_id=2,
+                user_id="user_viewer",
                 role="viewer",
-                org_id=1,
+                account_id="account_demo",
                 permissions=["read"],
                 row_filters={
-                    "users": {"org_id": 1},
-                    "orders": {"org_id": 1}
+                    "users": {"account_id": "account_demo"},
+                    "orders": {"account_id": "account_demo"}
                 },
                 field_masks={
                     "users": ["password", "api_key"]
@@ -54,9 +55,9 @@ async def get_security_context(
             )
         elif token == "analyst_token":
             return SecurityContext(
-                user_id=3,
+                user_id="user_analyst",
                 role="analyst",
-                org_id=1,
+                account_id="account_demo",
                 permissions=["read"],
                 row_filters={},
                 field_masks={
@@ -66,14 +67,14 @@ async def get_security_context(
         else:
             # Allow demo_token for general testing
             return SecurityContext(
-                user_id=999,
+                user_id="user_demo_token",
                 role="demo",
-                org_id=1,
+                account_id="account_demo",
                 permissions=["read"],
                 row_filters={},
                 field_masks={}
             )
-    
+
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authorization header"

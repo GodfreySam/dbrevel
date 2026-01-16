@@ -50,7 +50,7 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
 
         # Create schema preview (first few tables with column counts)
         # Ensure tables is a list before slicing
-        tables_list = list(schema.tables) if schema.tables else []
+        tables_list = list(schema.tables.values()) if schema.tables else []
         schema_preview = {
             "database_name": schema.name,
             "table_count": len(tables_list),
@@ -85,6 +85,8 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
             except:
                 pass
         error_msg = str(e)
+        import logging
+        logging.error(f"PostgreSQL connection error: {error_msg}", exc_info=True)
         # Don't expose full connection details in error
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
@@ -114,6 +116,10 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
         if not db_name:
             db_name = "test"
 
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Attempting MongoDB connection test with URL: {url}")
+
         adapter = MongoDBAdapter(url, db_name)
         await asyncio.wait_for(adapter.connect(), timeout=timeout)
 
@@ -125,18 +131,18 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
 
         # Create schema preview
         # Ensure collections is a list before slicing
-        collections_list = list(schema.collections) if schema.collections else []
+        collections_list_items = list(schema.collections.items()) if schema.collections else []
         schema_preview = {
             "database_name": schema.name,
-            "collection_count": len(collections_list),
+            "collection_count": len(collections_list_items),
             "collections": [
                 {
-                    "name": coll.name,
-                    "field_count": len(coll.fields) if coll.fields else 0,
-                    # Ensure fields is a list before slicing
-                    "fields": [f.name for f in (list(coll.fields)[:5] if coll.fields else [])],
+                    "name": coll_name,
+                    "field_count": len(coll_dict.get("fields", [])),
+                    # First 5 fields
+                    "fields": [f.name for f in (coll_dict.get("fields", [])[:5] if coll_dict.get("fields") else [])],
                 }
-                for coll in collections_list[:10]
+                for coll_name, coll_dict in collections_list_items[:10]
             ],
         }
 
@@ -159,6 +165,8 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             except:
                 pass
         error_msg = str(e)
+        import logging
+        logging.error(f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
         # Sanitize error messages
         if "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
@@ -168,3 +176,4 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             error_msg = "Not authorized - check database permissions"
 
         return ConnectionTestResult(success=False, error=error_msg)
+

@@ -27,7 +27,7 @@ DbRevel is a multi-account SaaS platform and SDK that bridges the gap between na
 - ✅ **Natural Language Queries** - "Get all users from Lagos" → Optimized SQL/MongoDB
 - ✅ **Multi-Database Support** - PostgreSQL, MongoDB (MySQL, Redis coming soon)
 - ✅ **Security Built-in** - Query validation, RBAC, encryption, audit trails
-- ✅ **Multi-Account SaaS Ready** - Per-account databases and Gemini usage
+- ✅ **Multi-Account SaaS Ready** - Per-project databases and Gemini usage
 - ✅ **Project Management** - Organize dev/staging/prod environments
 - ✅ **Admin Dashboard** - Platform management with usage analytics
 - ✅ **TypeScript SDK** - Official SDK for seamless integration
@@ -122,13 +122,7 @@ See the [LICENSE](LICENSE) file for the full license text.
 
 ### What MIT License Means
 
-The MIT License is a permissive open source license that allows you to:
-
-- ✅ Use the software commercially
-- ✅ Modify the source code
-- ✅ Distribute the software
-- ✅ Use it privately
-- ✅ Sublicense it
+The MIT License is a permissive open source license.
 
 **Requirements:**
 

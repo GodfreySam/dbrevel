@@ -17,6 +17,21 @@ export default function DatabaseConnectionStatus({
 		mongodb?: string;
 	} | null>(null);
 
+	// Helper to validate URL strings more strictly
+	const isValidUrl = (url: string | null | undefined) => {
+		if (!url) return false;
+		const trimmed = url.trim();
+		return (
+			trimmed !== "" &&
+			trimmed !== "***" &&
+			trimmed.toLowerCase() !== "none" &&
+			trimmed.toLowerCase() !== "null"
+		);
+	};
+
+	const hasPostgres = isValidUrl(project.postgres_url);
+	const hasMongo = isValidUrl(project.mongodb_url);
+
 	const testConnection = async () => {
 		setIsTesting(true);
 		setResults(null);
@@ -81,12 +96,18 @@ export default function DatabaseConnectionStatus({
 		}
 	};
 
-	const hasPostgres =
-		(project.postgres_url || "").trim() !== "" &&
-		project.postgres_url !== "***";
-	const hasMongo =
-		(project.mongodb_url || "").trim() !== "" && project.mongodb_url !== "***";
 	const canTest = hasPostgres || hasMongo;
+
+	// Helper to format raw backend errors into user-friendly messages
+	const formatError = (msg: string) => {
+		if (msg.includes("'str' object has no attribute 'name'")) {
+			return "Configuration Error: The server encountered an invalid database configuration.";
+		}
+		if (msg.includes("DNS operation timed out")) {
+			return "Connection Failed: Could not resolve the database hostname. Please check the URL.";
+		}
+		return msg;
+	};
 
 	return (
 		<div className="database-status-section">
@@ -122,7 +143,7 @@ export default function DatabaseConnectionStatus({
 								results.postgres.includes("Success") ? "success" : "error"
 							}`}
 						>
-							<strong>PostgreSQL:</strong> {results.postgres}
+							<strong>PostgreSQL:</strong> {formatError(results.postgres)}
 						</div>
 					)}
 					{results.mongodb && (
@@ -131,7 +152,7 @@ export default function DatabaseConnectionStatus({
 								results.mongodb.includes("Success") ? "success" : "error"
 							}`}
 						>
-							<strong>MongoDB:</strong> {results.mongodb}
+							<strong>MongoDB:</strong> {formatError(results.mongodb)}
 						</div>
 					)}
 				</div>

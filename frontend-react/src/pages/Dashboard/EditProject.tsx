@@ -74,18 +74,20 @@ export default function EditProjectModal({
 
 		try {
 			// Only include fields that have values
-			const payload: any = { name: formData.name };
+			const payload: any = { name: formData.name.trim() };
+			const pgUrl = formData.postgres_url.trim();
+			const mongoUrl = formData.mongodb_url.trim();
 
 			if (removePostgres) {
 				payload.postgres_url = "";
-			} else if (formData.postgres_url) {
-				payload.postgres_url = formData.postgres_url;
+			} else if (pgUrl) {
+				payload.postgres_url = pgUrl;
 			}
 
 			if (removeMongo) {
 				payload.mongodb_url = "";
-			} else if (formData.mongodb_url) {
-				payload.mongodb_url = formData.mongodb_url;
+			} else if (mongoUrl) {
+				payload.mongodb_url = mongoUrl;
 			}
 
 			await apiFetchJson(

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import "./ProjectForm.css";
 import { apiFetchJson } from "../../utils/api";
+import "./ProjectForm.css";
 
 interface CreateProjectModalProps {
 	isOpen: boolean;
@@ -39,9 +39,9 @@ export default function CreateProjectModal({
 						Authorization: `Bearer ${token}`,
 					},
 					body: JSON.stringify({
-						name: formData.name,
-						postgres_url: formData.postgres_url || null,
-						mongodb_url: formData.mongodb_url || null,
+						name: formData.name.trim(),
+						postgres_url: formData.postgres_url.trim() || null,
+						mongodb_url: formData.mongodb_url.trim() || null,
 					}),
 				},
 				logout,

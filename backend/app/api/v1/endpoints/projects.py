@@ -6,7 +6,7 @@ from typing import List
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
 from app.core.auth import get_current_user
-from app.core.encryption import decrypt_database_url, mask_database_url
+from app.core.encryption import decrypt_database_url, mask_database_url, encrypt_database_url
 from app.core.project_store import generate_project_id, get_project_store
 from app.models.project import (Project, ProjectApiKeyRevealResponse,
                                 ProjectApiKeyRotateResponse,
@@ -41,13 +41,17 @@ async def create_project(
     project_id = generate_project_id()
     api_key = generate_account_key()
 
+    # Encrypt database URLs at the API layer
+    encrypted_postgres_url = encrypt_database_url(request.postgres_url) if request.postgres_url else ""
+    encrypted_mongodb_url = encrypt_database_url(request.mongodb_url) if request.mongodb_url else ""
+
     # Create project
     project = await project_store.create_project_async(
         name=request.name,
         account_id=current_user.account_id,
         api_key=api_key,
-        postgres_url=request.postgres_url or "",
-        mongodb_url=request.mongodb_url or "",
+        postgres_url=encrypted_postgres_url,
+        mongodb_url=encrypted_mongodb_url,
         project_id=project_id,
     )
 
@@ -181,9 +185,9 @@ async def update_project(
     if request.name is not None:
         updates["name"] = request.name
     if request.postgres_url is not None:
-        updates["postgres_url"] = request.postgres_url
+        updates["postgres_url"] = encrypt_database_url(request.postgres_url)
     if request.mongodb_url is not None:
-        updates["mongodb_url"] = request.mongodb_url
+        updates["mongodb_url"] = encrypt_database_url(request.mongodb_url)
 
     updated_project = await project_store.update_project_async(project_id, **updates)
 

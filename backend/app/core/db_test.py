@@ -138,9 +138,9 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             "collections": [
                 {
                     "name": coll_name,
-                    "field_count": len(coll_dict.get("fields", [])),
+                    "field_count": len(coll_dict.get("fields", {})),
                     # First 5 fields
-                    "fields": [f.name for f in (coll_dict.get("fields", [])[:5] if coll_dict.get("fields") else [])],
+                    "fields": list(coll_dict.get("fields", {}).keys())[:5],
                 }
                 for coll_name, coll_dict in collections_list_items[:10]
             ],

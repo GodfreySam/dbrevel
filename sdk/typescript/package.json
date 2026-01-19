@@ -6,11 +6,16 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/dbrevel/sdk-typescript.git"
+		"url": "git+https://github.com/GodfreySam/dbrevel.git",
+		"directory": "sdk/typescript"
 	},
-	"homepage": "https://github.com/dbrevel/sdk-typescript#readme",
+	"homepage": "https://github.com/GodfreySam/dbrevel/tree/main/sdk/typescript#readme",
 	"bugs": {
-		"url": "https://github.com/dbrevel/sdk-typescript/issues"
+		"url": "https://github.com/GodfreySam/dbrevel/issues"
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
 	},
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/esm/index.js",

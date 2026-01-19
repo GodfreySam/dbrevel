@@ -1,21 +1,50 @@
-"""PostgreSQL database adapter"""
+"""
+This module provides a PostgreSQL database adapter for the application.
+
+It includes the `PostgresAdapter` class, which implements the `DatabaseAdapter` interface
+for connecting to and interacting with a PostgreSQL database. The adapter uses the `asyncpg`
+library for asynchronous database operations and includes features like connection pooling,
+schema introspection with retry logic, and query execution with result size limits.
+"""
+
+import logging
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+from asyncpg.exceptions import ConnectionDoesNotExistError
+
 from app.adapters.base import DatabaseAdapter
+from app.core.retry import with_retry
 from app.models.schema import ColumnSchema, DatabaseSchema, TableSchema
 
 
 class PostgresAdapter(DatabaseAdapter):
-    """PostgreSQL database adapter"""
+    """
+    PostgreSQL database adapter.
+
+    This class manages a connection pool to a PostgreSQL database and provides
+    methods for schema introspection and query execution. It is designed to be
+    resilient to transient connection errors using a retry mechanism.
+    """
 
     def __init__(self, connection_string: str):
+        """
+        Initializes the PostgresAdapter.
+
+        Args:
+            connection_string: The connection string for the PostgreSQL database.
+        """
         self.connection_string = connection_string
         self.pool: Optional[asyncpg.Pool] = None
         self._schema: Optional[DatabaseSchema] = None
 
     async def connect(self) -> None:
-        """Create connection pool"""
+        """
+        Creates and establishes the connection pool to the database.
+
+        This method configures the pool for compatibility with connection
+        poolers like Pgbouncer by disabling the statement cache.
+        """
         # Disable statement cache for pgbouncer compatibility
         # pgbouncer with transaction/statement pool mode doesn't support prepared statements
         self.pool = await asyncpg.create_pool(
@@ -24,17 +53,26 @@ class PostgresAdapter(DatabaseAdapter):
             max_size=10,
             command_timeout=60,
             timeout=20,  # Explicit connection timeout
-            statement_cache_size=0  # Required for pgbouncer compatibility
+            statement_cache_size=0,  # Required for pgbouncer compatibility
         )
 
     async def disconnect(self) -> None:
-        """Close connection pool"""
+        """Closes the connection pool and terminates all database connections."""
         if self.pool:
             await self.pool.close()
 
+    @with_retry(exceptions=(ConnectionDoesNotExistError,), max_retries=3)
     async def introspect_schema(self) -> DatabaseSchema:
-        """Introspect PostgreSQL schema"""
+        """
+        Introspects the PostgreSQL database schema and returns a structured representation.
 
+        This method fetches metadata about tables, columns, primary keys, and foreign keys
+        for the 'public' schema. It also attempts to get the row count for each table.
+        The result is cached to avoid redundant introspection.
+
+        Returns:
+            A `DatabaseSchema` object representing the database structure.
+        """
         if self._schema:
             return self._schema
 
@@ -81,31 +119,32 @@ class PostgresAdapter(DatabaseAdapter):
         relationships = []
 
         for row in rows:
-            table_name = row['table_name']
+            table_name = row["table_name"]
 
             if table_name not in tables:
                 tables[table_name] = TableSchema(
-                    name=table_name,
-                    columns=[],
-                    indexes=[]
+                    name=table_name, columns=[], indexes=[]
                 )
 
             column = ColumnSchema(
-                name=row['column_name'],
-                type=row['data_type'],
-                nullable=row['is_nullable'] == 'YES',
-                primary_key=row['is_primary'],
+                name=row["column_name"],
+                type=row["data_type"],
+                nullable=row["is_nullable"] == "YES",
+                primary_key=row["is_primary"],
                 foreign_key=f"{row['foreign_table_name']}.{row['foreign_column_name']}"
-                if row['foreign_table_name'] else None
+                if row["foreign_table_name"]
+                else None,
             )
 
             tables[table_name].columns.append(column)
 
-            if row['foreign_table_name']:
-                relationships.append({
-                    'from': f"{table_name}.{row['column_name']}",
-                    'to': f"{row['foreign_table_name']}.{row['foreign_column_name']}"
-                })
+            if row["foreign_table_name"]:
+                relationships.append(
+                    {
+                        "from": f"{table_name}.{row['column_name']}",
+                        "to": f"{row['foreign_table_name']}.{row['foreign_column_name']}",
+                    }
+                )
 
         # Get row counts for each table
         for table_name in tables:
@@ -123,7 +162,6 @@ class PostgresAdapter(DatabaseAdapter):
                 tables[table_name].row_count = count
             except Exception as e:
                 # Log the error but continue with other tables
-                import logging
                 logging.getLogger(__name__).warning(
                     f"Failed to get row count for table {table_name}: {e}"
                 )
@@ -131,30 +169,31 @@ class PostgresAdapter(DatabaseAdapter):
 
         self._schema = DatabaseSchema(
             type="postgres",
-            name=self.connection_string.split('/')[-1],
+            name=self.connection_string.split("/")[-1],
             tables=tables,
-            relationships=relationships
+            relationships=relationships,
         )
 
         return self._schema
 
     async def execute(
-        self,
-        query: str,
-        params: List[Any] = None,
-        max_rows: int = 10000
+        self, query: str, params: List[Any] = None, max_rows: int = 10000
     ) -> List[Dict[str, Any]]:
-        """Execute SQL query with result size limits
+        """
+        Executes a SQL query and returns the results.
+
+        This method automatically adds a `LIMIT` clause to the query if one is not
+        already present, to prevent excessive memory usage. It logs a warning if
+        the number of returned rows reaches the specified limit.
 
         Args:
-            query: SQL query string
-            params: Query parameters
-            max_rows: Maximum number of rows to return (default: 10000)
+            query: The SQL query string to execute.
+            params: A list of parameters to substitute into the query.
+            max_rows: The maximum number of rows to return.
 
         Returns:
-            List of result rows as dictionaries
+            A list of dictionaries, where each dictionary represents a result row.
         """
-        import logging
         logger = logging.getLogger(__name__)
 
         # Add LIMIT clause if not present to prevent memory issues
@@ -180,7 +219,12 @@ class PostgresAdapter(DatabaseAdapter):
             return [dict(row) for row in rows]
 
     async def health_check(self) -> bool:
-        """Check PostgreSQL health"""
+        """
+        Performs a health check on the database connection.
+
+        Returns:
+            `True` if the connection is healthy, `False` otherwise.
+        """
         try:
             await self.pool.fetchval("SELECT 1")
             return True

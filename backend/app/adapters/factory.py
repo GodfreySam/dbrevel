@@ -1,3 +1,15 @@
+"""
+This module defines the `AdapterFactory`, a centralized factory for creating,
+managing, and caching database adapters for different accounts.
+
+The factory is responsible for:
+- Lazily initializing database adapters (e.g., PostgreSQL, MongoDB) on a per-account basis.
+- Handling database URL decryption and secure connection setup.
+- Gracefully managing partial database connectivity, allowing the application to
+  function even if one of an account's databases is unavailable.
+- Providing a singleton instance (`adapter_factory`) for global access.
+"""
+
 import asyncio
 import logging
 from typing import Dict
@@ -12,95 +24,110 @@ logger = logging.getLogger(__name__)
 
 
 class AdapterFactory:
-    """Factory for creating and managing database adapters per account."""
+    """
+    A factory for creating and managing database adapters on a per-account basis.
+
+    This class uses a lazy initialization strategy, creating and caching adapters
+    only when they are first requested for an account. This avoids unnecessary
+    database connections for inactive accounts.
+    """
 
     def __init__(self):
-        # account_id -> { db_name -> adapter }
+        """Initializes the AdapterFactory with an empty cache for adapters."""
+        # A nested dictionary to store adapters: {account_id: {db_name: adapter}}
         self._adapters_by_account: Dict[str, Dict[str, DatabaseAdapter]] = {}
 
     async def _create_adapters_for_account(
         self, account: AccountConfig
     ) -> Dict[str, DatabaseAdapter]:
-        """Create and initialize adapters for a specific account.
+        """
+        Creates and initializes all configured database adapters for a specific account.
+
+        This method attempts to connect to each database specified in the account
+        configuration (e.g., PostgreSQL, MongoDB). It handles connection errors
+        gracefully, allowing the application to proceed with partial connectivity.
 
         Args:
-            account: Account configuration
+            account: The configuration for the account.
 
         Returns:
-            Dictionary of database adapters (may be empty if all connections fail)
+            A dictionary of successfully initialized database adapters, keyed by database name.
 
         Raises:
-            RuntimeError: If no database adapters could be created for the account
+            RuntimeError: If no database adapters could be successfully created for the account.
         """
-
         adapters: Dict[str, DatabaseAdapter] = {}
         errors = []
 
         # PostgreSQL adapter - decrypt URL before using
         if account.postgres_url:
+            pg_db_name = "postgres"  # Default
             try:
-                logger.info(
-                    f"Initializing PostgreSQL adapter for account {account.id}")
+                logger.info(f"Initializing PostgreSQL adapter for account {account.id}")
                 decrypted_pg_url = decrypt_database_url(account.postgres_url)
+                pg_db_name = decrypted_pg_url.split("/")[-1].split("?")[0]
                 postgres = PostgresAdapter(decrypted_pg_url)
                 await postgres.connect()
                 await postgres.introspect_schema()
-                adapters["postgres"] = postgres
+                adapters[pg_db_name] = postgres
                 logger.info(
-                    f"✓ PostgreSQL adapter created for account {account.id}")
+                    f"✓ PostgreSQL adapter created for account {account.id} (db: {pg_db_name})"
+                )
             except (asyncio.TimeoutError, TimeoutError) as e:
-                # Handle timeouts gracefully without stack trace
-                error_msg = f"Connection timed out for PostgreSQL (Account {account.id})"
+                error_msg = (
+                    f"Connection timed out for PostgreSQL (Account {account.id})"
+                )
                 logger.warning(error_msg)
-                errors.append(("postgres", "timeout", str(e)))
+                errors.append((pg_db_name, "timeout", str(e)))
             except ValueError as e:
-                # Decryption or validation error
-                error_msg = f"PostgreSQL configuration error for account {account.id}: {e}"
+                error_msg = (
+                    f"PostgreSQL configuration error for account {account.id}: {e}"
+                )
                 logger.error(error_msg)
-                errors.append(("postgres", "configuration", str(e)))
+                errors.append((pg_db_name, "configuration", str(e)))
             except Exception as e:
-                # Connection or introspection error
-                error_msg = f"Failed to connect to PostgreSQL for account {account.id}: {e}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(("postgres", "connection", str(e)))
+                error_msg = f"Failed to initialize PostgreSQL adapter for account {account.id}: {e}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append((pg_db_name, "connection", str(e)))
 
         # MongoDB adapter - decrypt URL before using
         if account.mongodb_url:
+            # Always use 'mongodb' as the key for the MongoDB adapter
+            # This ensures consistency with how queries might reference the MongoDB database
+            mongo_adapter_key = "mongodb"
             try:
-                logger.info(
-                    f"Initializing MongoDB adapter for account {account.id}")
+                logger.info(f"Initializing MongoDB adapter for account {account.id}")
                 decrypted_mongo_url = decrypt_database_url(account.mongodb_url)
-                # Extract database name from URL
-                db_name = decrypted_mongo_url.split("/")[-1].split("?")[0]
-                if not db_name:
-                    db_name = "dbreveldemo"
+                # The actual database name from the URL might be different,
+                # but for consistency with query plans, we'll use "mongodb" as the key.
+                # The MongoDBAdapter constructor still needs the actual db_name for connection.
+                db_name_from_url = decrypted_mongo_url.split("/")[-1].split("?")[0]
+                if not db_name_from_url:
+                    db_name_from_url = "dbrevel_demo" # Fallback if no db name in URL
 
-                mongodb = MongoDBAdapter(decrypted_mongo_url, db_name)
+                mongodb = MongoDBAdapter(decrypted_mongo_url, db_name_from_url)
                 await mongodb.connect()
                 await mongodb.introspect_schema()
-                adapters["mongodb"] = mongodb
+                adapters[mongo_adapter_key] = mongodb
                 logger.info(
-                    f"✓ MongoDB adapter created for account {account.id}")
+                    f"✓ MongoDB adapter created for account {account.id} (key: {mongo_adapter_key}, actual db: {db_name_from_url})"
+                )
             except (asyncio.TimeoutError, TimeoutError) as e:
-                # Handle timeouts gracefully without stack trace
                 error_msg = f"Connection timed out for MongoDB (Account {account.id})"
                 logger.warning(error_msg)
-                errors.append(("mongodb", "timeout", str(e)))
+                errors.append((mongo_adapter_key, "timeout", str(e)))
             except ValueError as e:
-                # Decryption or validation error
                 error_msg = f"MongoDB configuration error for account {account.id}: {e}"
                 logger.error(error_msg)
-                errors.append(("mongodb", "configuration", str(e)))
+                errors.append((mongo_adapter_key, "configuration", str(e)))
             except Exception as e:
-                # Connection or introspection error
-                error_msg = f"Failed to connect to MongoDB for account {account.id}: {e}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(("mongodb", "connection", str(e)))
+                error_msg = f"Failed to initialize MongoDB adapter for account {account.id}: {e}"
+                logger.warning(error_msg, exc_info=True)
+                errors.append((mongo_adapter_key, "connection", str(e)))
 
         # If no adapters were created successfully, raise an error
         if not adapters:
-            error_summary = "; ".join(
-                [f"{db}: {err}" for db, _, err in errors])
+            error_summary = "; ".join([f"{db}: {err}" for db, _, err in errors])
             raise RuntimeError(
                 f"Failed to create any database adapters for account {account.id}. "
                 f"Errors: {error_summary}"
@@ -108,9 +135,10 @@ class AdapterFactory:
 
         # Log warnings if some adapters failed but at least one succeeded
         if errors:
+            failed_dbs = [db for db, _, _ in errors]
             logger.warning(
                 f"Account {account.id} has partial database connectivity. "
-                f"Failed: {[db for db, _, _ in errors]}. "
+                f"Failed: {failed_dbs}. "
                 f"Available: {list(adapters.keys())}"
             )
 
@@ -120,20 +148,31 @@ class AdapterFactory:
         self, account: AccountConfig
     ) -> Dict[str, DatabaseAdapter]:
         """
-        Get (and lazily initialize) adapters for an account.
+        Retrieves (and lazily initializes) the database adapters for a given account.
 
-        This ensures connection pools and schemas are created once per account.
+        This method ensures that connection pools and schema introspection are performed
+        only once per account. The results are cached for subsequent calls.
+
+        Args:
+            account: The account for which to retrieve adapters.
+
+        Returns:
+            A dictionary of database adapters available for the account.
         """
-
         if account.id not in self._adapters_by_account:
-            self._adapters_by_account[account.id] = await self._create_adapters_for_account(
-                account
-            )
+            self._adapters_by_account[
+                account.id
+            ] = await self._create_adapters_for_account(account)
 
         return self._adapters_by_account[account.id]
 
     async def shutdown(self):
-        """Disconnect all adapters for all accounts."""
+        """
+        Disconnects all active adapters for all accounts and clears the cache.
+
+        This should be called during application shutdown to ensure graceful
+        termination of all database connections.
+        """
         for adapters in self._adapters_by_account.values():
             for adapter in adapters.values():
                 await adapter.disconnect()
@@ -141,22 +180,45 @@ class AdapterFactory:
         self._adapters_by_account.clear()
 
     async def get(self, account: AccountConfig, name: str) -> DatabaseAdapter:
-        """Get adapter by account and database name."""
+        """
+        Retrieves a specific database adapter for an account by name.
+
+        Args:
+            account: The account for which to retrieve the adapter.
+            name: The name of the database adapter (e.g., 'postgres', 'dbrevel_demo').
+
+        Returns:
+            The requested `DatabaseAdapter` instance.
+
+        Raises:
+            ValueError: If no adapter with the given name is found for the account.
+        """
         adapters = await self.get_adapters_for_account(account)
         if name not in adapters:
             raise ValueError(
-                f"No adapter found for database '{name}' for account '{account.id}'")
+                f"No adapter found for database '{name}' for account '{account.id}'"
+            )
         return adapters[name]
 
     async def get_all_schemas(self, account: AccountConfig) -> Dict[str, any]:
-        """Get all database schemas for an account."""
+        """
+        Retrieves the database schemas for all available adapters for an account.
+
+        The schema introspection is cached within each adapter, so this operation
+        is inexpensive after the first call.
+
+        Args:
+            account: The account for which to retrieve schemas.
+
+        Returns:
+            A dictionary mapping database names to their schema objects.
+        """
         adapters = await self.get_adapters_for_account(account)
         schemas = {}
         for name, adapter in adapters.items():
-            # introspect_schema is cached in adapters, so this is cheap after first call
             schemas[name] = await adapter.introspect_schema()
         return schemas
 
 
-# Singleton instance
+# Singleton instance of the factory for global use.
 adapter_factory = AdapterFactory()

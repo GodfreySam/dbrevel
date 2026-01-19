@@ -464,11 +464,43 @@ async def update_user(
             detail="User store not initialized",
         )
 
-    # This requires implementing update_user in user_store
-    # For now, raise not implemented
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="User update not yet implemented",
+    # Prevent admin from demoting themselves
+    if request.role and request.role != "admin" and user_id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot demote yourself",
+        )
+
+    try:
+        updated_user = await user_store.update_user(
+            user_id=user_id,
+            role=request.role,
+            email_verified=request.email_verified,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    if not updated_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Get account name
+    account = await account_store.get_by_id_async(updated_user.account_id)
+
+    return UserResponse(
+        id=updated_user.id,
+        email=updated_user.email,
+        account_id=updated_user.account_id,
+        account_name=account.name if account else "Unknown",
+        created_at=updated_user.created_at,
+        last_login=updated_user.last_login,
+        email_verified=updated_user.email_verified,
+        role=updated_user.role,
     )
 
 
@@ -490,12 +522,20 @@ async def delete_user(
             detail="User store not initialized",
         )
 
-    # This requires implementing delete_user in user_store
-    # For now, raise not implemented
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="User deletion not yet implemented",
-    )
+    # Prevent admin from deleting themselves
+    if user_id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete yourself",
+        )
+
+    deleted = await user_store.delete_user(user_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
 
 
 # ============================================================================
@@ -544,6 +584,135 @@ async def list_all_projects(
         )
         for p in projects
     ]
+
+
+@router.patch("/projects/{project_id}/deactivate", response_model=ProjectResponse)
+async def deactivate_project(
+    project_id: str,
+    current_admin: User = Depends(get_current_admin),
+):
+    """
+    Deactivate a project (set is_active to False).
+
+    Admin only.
+    """
+    project_store = get_project_store()
+
+    if not project_store:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project store not initialized",
+        )
+
+    # Get project first
+    project = await project_store.get_by_id_async(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Update is_active to False
+    updated = await project_store.update_project_async(
+        project_id=project_id,
+        is_active=False,
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to deactivate project",
+        )
+
+    return ProjectResponse(
+        id=updated.id,
+        name=updated.name,
+        account_id=updated.account_id,
+        api_key="***",
+        postgres_url=mask_database_url(decrypt_database_url(updated.postgres_url)),
+        mongodb_url=mask_database_url(decrypt_database_url(updated.mongodb_url)),
+        created_at=updated.created_at,
+        updated_at=updated.updated_at,
+        is_active=updated.is_active,
+    )
+
+
+@router.patch("/projects/{project_id}/activate", response_model=ProjectResponse)
+async def activate_project(
+    project_id: str,
+    current_admin: User = Depends(get_current_admin),
+):
+    """
+    Activate a project (set is_active to True).
+
+    Admin only.
+    """
+    project_store = get_project_store()
+
+    if not project_store:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project store not initialized",
+        )
+
+    # Get project first
+    project = await project_store.get_by_id_async(project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Update is_active to True
+    updated = await project_store.update_project_async(
+        project_id=project_id,
+        is_active=True,
+    )
+
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to activate project",
+        )
+
+    return ProjectResponse(
+        id=updated.id,
+        name=updated.name,
+        account_id=updated.account_id,
+        api_key="***",
+        postgres_url=mask_database_url(decrypt_database_url(updated.postgres_url)),
+        mongodb_url=mask_database_url(decrypt_database_url(updated.mongodb_url)),
+        created_at=updated.created_at,
+        updated_at=updated.updated_at,
+        is_active=updated.is_active,
+    )
+
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: str,
+    current_admin: User = Depends(get_current_admin),
+):
+    """
+    Permanently delete a project.
+
+    Admin only. Use with caution.
+    """
+    project_store = get_project_store()
+
+    if not project_store:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project store not initialized",
+        )
+
+    deleted = await project_store.delete_project_async(project_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
 
 
 # ============================================================================
@@ -630,15 +799,25 @@ async def get_platform_stats(
     )
 
 
-class UsageStats(BaseModel):
-    """Usage statistics."""
+class UsageDataPoint(BaseModel):
+    """Single data point for time-series usage."""
+
+    date: str  # YYYY-MM-DD format
+    queries: int
+    execution_time_ms: float
+
+
+class UsageAnalytics(BaseModel):
+    """Comprehensive usage analytics with time-series data."""
 
     total_queries: int
     total_execution_time_ms: float
     total_tokens: int
+    daily_usage: List[UsageDataPoint]  # Last 30 days
+    queries_by_type: dict  # {"postgres": X, "mongodb": Y}
 
 
-@router.get("/analytics/usage", response_model=UsageStats)
+@router.get("/analytics/usage", response_model=UsageAnalytics)
 async def get_usage_analytics(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
@@ -646,7 +825,12 @@ async def get_usage_analytics(
     current_admin: User = Depends(get_current_admin),
 ):
     """
-    Get usage analytics with optional date range and tenant filter.
+    Get usage analytics with time-series data for charts.
+
+    Returns:
+    - Total queries, execution time, and tokens
+    - Daily usage breakdown for last 30 days
+    - Query distribution by database type (postgres/mongodb)
 
     Admin only.
     """
@@ -659,47 +843,92 @@ async def get_usage_analytics(
 
     await user_store._ensure_connected()
 
+    from datetime import datetime, timedelta
+    import logging
+
+    # Default to last 30 days if no date range provided
+    now = datetime.utcnow()
+    if not start_date:
+        start_dt = now - timedelta(days=30)
+    else:
+        try:
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except ValueError:
+            start_dt = now - timedelta(days=30)
+
+    if not end_date:
+        end_dt = now
+    else:
+        try:
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        except ValueError:
+            end_dt = now
+
     # Build query filter
-    query_filter = {}
+    query_filter = {
+        "timestamp": {"$gte": start_dt, "$lte": end_dt}
+    }
     if account_id:
         query_filter["account_id"] = account_id
 
-    # Parse date range if provided
-    from datetime import datetime
-    if start_date:
-        try:
-            start_dt = datetime.fromisoformat(
-                start_date.replace('Z', '+00:00'))
-            query_filter.setdefault("timestamp", {})["$gte"] = start_dt
-        except ValueError:
-            pass
-
-    if end_date:
-        try:
-            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            query_filter.setdefault("timestamp", {})["$lte"] = end_dt
-        except ValueError:
-            pass
-
-    # Query usage_logs collection from MongoDB
+    # Initialize counters
     total_queries = 0
     total_execution_time_ms = 0.0
     total_tokens = 0
+    queries_by_type = {"postgres": 0, "mongodb": 0}
+    daily_data: dict = {}  # date_str -> {queries, execution_time_ms}
 
     try:
         async for log in user_store.db.usage_logs.find(query_filter):
             total_queries += 1
-            total_execution_time_ms += log.get("execution_time_ms", 0.0)
-            total_tokens += log.get("tokens_used", 0)
+            exec_time = log.get("execution_time_ms", 0.0)
+            total_execution_time_ms += exec_time
+            total_tokens += log.get("tokens_used", 0) or log.get("gemini_tokens_used", 0)
+
+            # Count by query type
+            query_type = log.get("query_type", "unknown")
+            if query_type in queries_by_type:
+                queries_by_type[query_type] += 1
+
+            # Aggregate by day
+            timestamp = log.get("timestamp")
+            if timestamp:
+                date_str = timestamp.strftime("%Y-%m-%d")
+                if date_str not in daily_data:
+                    daily_data[date_str] = {"queries": 0, "execution_time_ms": 0.0}
+                daily_data[date_str]["queries"] += 1
+                daily_data[date_str]["execution_time_ms"] += exec_time
+
     except Exception as e:
-        # usage_logs collection may not exist yet
-        import logging
         logging.warning(f"Could not query usage_logs: {e}")
 
-    return UsageStats(
+    # Build daily_usage list with all days in range (fill gaps with zeros)
+    daily_usage = []
+    current_date = start_dt.date()
+    end_date_obj = end_dt.date()
+
+    while current_date <= end_date_obj:
+        date_str = current_date.strftime("%Y-%m-%d")
+        if date_str in daily_data:
+            daily_usage.append(UsageDataPoint(
+                date=date_str,
+                queries=daily_data[date_str]["queries"],
+                execution_time_ms=daily_data[date_str]["execution_time_ms"],
+            ))
+        else:
+            daily_usage.append(UsageDataPoint(
+                date=date_str,
+                queries=0,
+                execution_time_ms=0.0,
+            ))
+        current_date += timedelta(days=1)
+
+    return UsageAnalytics(
         total_queries=total_queries,
         total_execution_time_ms=total_execution_time_ms,
         total_tokens=total_tokens,
+        daily_usage=daily_usage,
+        queries_by_type=queries_by_type,
     )
 
 

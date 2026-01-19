@@ -35,14 +35,25 @@ function shouldRetry(
 	attempt: number,
 	config: Required<RetryConfig>,
 ): boolean {
-	// Check custom shouldRetry function first
-	if (config.shouldRetry && !config.shouldRetry(error, attempt)) {
-		return false;
-	}
-
 	// Check if max retries exceeded
 	if (attempt > config.maxRetries) {
 		return false;
+	}
+
+	// Check custom shouldRetry function - if provided and returns true, allow retry
+	if (config.shouldRetry) {
+		const customResult = config.shouldRetry(error, attempt);
+		if (!customResult) {
+			return false;
+		}
+		// If custom function returns true for a non-standard error, allow retry
+		if (
+			!(error instanceof DbRevelNetworkError) &&
+			!(error instanceof DbRevelTimeoutError) &&
+			!(error instanceof DbRevelAPIError)
+		) {
+			return true;
+		}
 	}
 
 	// Check error codes

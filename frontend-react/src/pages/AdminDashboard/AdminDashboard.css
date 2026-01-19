@@ -298,6 +298,182 @@
 	color: #555;
 }
 
+/* Chart Container */
+.chart-container {
+	background: white;
+	padding: 24px;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	margin-bottom: 24px;
+}
+
+.chart-container h3 {
+	margin: 0 0 20px 0;
+	font-size: 16px;
+	color: #333;
+	font-weight: 600;
+}
+
+.no-data-message {
+	text-align: center;
+	color: #888;
+	padding: 40px 0;
+	font-size: 14px;
+}
+
+/* Health Page */
+.health-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 24px;
+}
+
+.health-header h2 {
+	margin: 0;
+}
+
+.refresh-btn {
+	padding: 10px 20px;
+	background: #6a9d3a;
+	color: white;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-weight: 600;
+	transition: background 0.2s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+	background: #5a8d2a;
+}
+
+.refresh-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Health Badges */
+.health-badge {
+	display: inline-block;
+	padding: 6px 12px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.status-healthy {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+.status-unhealthy {
+	background: #ffebee;
+	color: #c62828;
+}
+
+.status-not-configured {
+	background: #f5f5f5;
+	color: #666;
+}
+
+.status-unknown {
+	background: #fff3e0;
+	color: #e65100;
+}
+
+.account-id {
+	font-size: 11px;
+	color: #888;
+}
+
+/* Health Legend */
+.health-legend {
+	margin-top: 24px;
+	padding: 16px 20px;
+	background: white;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.health-legend h4 {
+	margin: 0 0 12px 0;
+	font-size: 14px;
+	color: #333;
+}
+
+.legend-items {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 8px 16px;
+	align-items: center;
+	font-size: 13px;
+	color: #666;
+}
+
+/* Action Buttons */
+.action-buttons {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.action-btn {
+	padding: 6px 12px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	transition: all 0.2s;
+}
+
+.action-btn-verify {
+	background: #e3f2fd;
+	color: #1976d2;
+}
+
+.action-btn-verify:hover {
+	background: #bbdefb;
+}
+
+.action-btn-promote {
+	background: #fff3e0;
+	color: #e65100;
+}
+
+.action-btn-promote:hover {
+	background: #ffe0b2;
+}
+
+.action-btn-delete {
+	background: #ffebee;
+	color: #c62828;
+}
+
+.action-btn-delete:hover {
+	background: #ffcdd2;
+}
+
+.action-btn-demote {
+	background: #f5f5f5;
+	color: #666;
+}
+
+.action-btn-demote:hover {
+	background: #e0e0e0;
+}
+
+.current-user-badge {
+	color: #6a9d3a;
+	font-weight: 600;
+	font-size: 12px;
+}
+
+.no-actions {
+	color: #999;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.admin-sidebar {

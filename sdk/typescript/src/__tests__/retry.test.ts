@@ -8,13 +8,10 @@ import {
 } from "../errors";
 import { withRetry } from "../utils/retry";
 
-// Mock sleep
-jest.useFakeTimers();
-
 describe("Retry Logic", () => {
 	beforeEach(() => {
-		jest.clearAllTimers();
 		jest.clearAllMocks();
+		jest.useRealTimers();
 	});
 
 	it("should succeed on first attempt", async () => {
@@ -30,13 +27,12 @@ describe("Retry Logic", () => {
 			.mockRejectedValueOnce(new DbRevelNetworkError("Network error"))
 			.mockResolvedValue("success");
 
-		const promise = withRetry(fn, { maxRetries: 2 });
-		jest.advanceTimersByTime(1000);
-		const result = await promise;
+		// Use short delays for tests
+		const result = await withRetry(fn, { maxRetries: 2, retryDelay: 10 });
 
 		expect(result).toBe("success");
 		expect(fn).toHaveBeenCalledTimes(2);
-	});
+	}, 10000);
 
 	it("should retry on timeout error", async () => {
 		const fn = jest
@@ -44,13 +40,11 @@ describe("Retry Logic", () => {
 			.mockRejectedValueOnce(new DbRevelTimeoutError(5000))
 			.mockResolvedValue("success");
 
-		const promise = withRetry(fn, { maxRetries: 2 });
-		jest.advanceTimersByTime(1000);
-		const result = await promise;
+		const result = await withRetry(fn, { maxRetries: 2, retryDelay: 10 });
 
 		expect(result).toBe("success");
 		expect(fn).toHaveBeenCalledTimes(2);
-	});
+	}, 10000);
 
 	it("should retry on retryable status codes", async () => {
 		const fn = jest
@@ -58,29 +52,28 @@ describe("Retry Logic", () => {
 			.mockRejectedValueOnce(new DbRevelAPIError("Server error", 500))
 			.mockResolvedValue("success");
 
-		const promise = withRetry(fn, {
+		const result = await withRetry(fn, {
 			maxRetries: 2,
+			retryDelay: 10,
 			retryableStatusCodes: [500, 502, 503],
 		});
-		jest.advanceTimersByTime(1000);
-		const result = await promise;
 
 		expect(result).toBe("success");
 		expect(fn).toHaveBeenCalledTimes(2);
-	});
+	}, 10000);
 
 	it("should not retry on non-retryable status codes", async () => {
 		const fn = jest
 			.fn()
 			.mockRejectedValue(new DbRevelAPIError("Bad request", 400));
 
-		const promise = withRetry(fn, {
-			maxRetries: 3,
-			retryableStatusCodes: [500, 502, 503],
-		});
-		jest.advanceTimersByTime(1000);
-
-		await expect(promise).rejects.toThrow(DbRevelAPIError);
+		await expect(
+			withRetry(fn, {
+				maxRetries: 3,
+				retryDelay: 10,
+				retryableStatusCodes: [500, 502, 503],
+			}),
+		).rejects.toThrow(DbRevelAPIError);
 		expect(fn).toHaveBeenCalledTimes(1);
 	});
 
@@ -89,56 +82,72 @@ describe("Retry Logic", () => {
 			.fn()
 			.mockRejectedValue(new DbRevelNetworkError("Network error"));
 
-		const promise = withRetry(fn, { maxRetries: 2 });
-		jest.advanceTimersByTime(5000);
-
-		await expect(promise).rejects.toThrow(DbRevelNetworkError);
+		await expect(
+			withRetry(fn, { maxRetries: 2, retryDelay: 10 }),
+		).rejects.toThrow(DbRevelNetworkError);
 		expect(fn).toHaveBeenCalledTimes(3); // Initial + 2 retries
-	});
+	}, 10000);
 
 	it("should use exponential backoff", async () => {
-		const fn = jest
-			.fn()
-			.mockRejectedValue(new DbRevelNetworkError("Network error"));
+		const delays: number[] = [];
+		let lastTime = Date.now();
 
-		const promise = withRetry(fn, {
+		const fn = jest.fn().mockImplementation(async () => {
+			const now = Date.now();
+			if (fn.mock.calls.length > 1) {
+				delays.push(now - lastTime);
+			}
+			lastTime = now;
+			if (fn.mock.calls.length < 4) {
+				throw new DbRevelNetworkError("Network error");
+			}
+			return "success";
+		});
+
+		const result = await withRetry(fn, {
 			maxRetries: 3,
-			retryDelay: 1000,
+			retryDelay: 50,
 			backoffMultiplier: 2,
 		});
 
-		// First retry after 1000ms
-		jest.advanceTimersByTime(1000);
-		await Promise.resolve();
-		// Second retry after 2000ms
-		jest.advanceTimersByTime(2000);
-		await Promise.resolve();
-		// Third retry after 4000ms
-		jest.advanceTimersByTime(4000);
-		await Promise.resolve();
-
-		// Should have attempted 4 times (initial + 3 retries)
+		expect(result).toBe("success");
 		expect(fn).toHaveBeenCalledTimes(4);
-	});
+		// Verify exponential backoff pattern (with some tolerance)
+		expect(delays[0]).toBeGreaterThanOrEqual(40);
+		expect(delays[1]).toBeGreaterThanOrEqual(90);
+		expect(delays[2]).toBeGreaterThanOrEqual(180);
+	}, 10000);
 
 	it("should respect max retry delay", async () => {
-		const fn = jest
-			.fn()
-			.mockRejectedValue(new DbRevelNetworkError("Network error"));
+		const delays: number[] = [];
+		let lastTime = Date.now();
 
-		const promise = withRetry(fn, {
-			maxRetries: 2,
-			retryDelay: 1000,
-			maxRetryDelay: 2000,
-			backoffMultiplier: 10, // Would exceed maxRetryDelay
+		const fn = jest.fn().mockImplementation(async () => {
+			const now = Date.now();
+			if (fn.mock.calls.length > 1) {
+				delays.push(now - lastTime);
+			}
+			lastTime = now;
+			if (fn.mock.calls.length < 3) {
+				throw new DbRevelNetworkError("Network error");
+			}
+			return "success";
 		});
 
-		jest.advanceTimersByTime(5000);
-		await expect(promise).rejects.toThrow();
+		const result = await withRetry(fn, {
+			maxRetries: 2,
+			retryDelay: 50,
+			maxRetryDelay: 75,
+			backoffMultiplier: 10, // Would be 500ms without cap
+		});
 
-		// Verify delays were capped at maxRetryDelay
+		expect(result).toBe("success");
 		expect(fn).toHaveBeenCalledTimes(3);
-	});
+		// Verify delays were capped at maxRetryDelay
+		delays.forEach((delay) => {
+			expect(delay).toBeLessThanOrEqual(100); // maxRetryDelay + tolerance
+		});
+	}, 10000);
 
 	it("should use custom shouldRetry function", async () => {
 		const fn = jest
@@ -148,28 +157,28 @@ describe("Retry Logic", () => {
 
 		const shouldRetry = jest.fn().mockReturnValue(true);
 
-		const promise = withRetry(fn, {
+		const result = await withRetry(fn, {
 			maxRetries: 2,
+			retryDelay: 10,
 			shouldRetry,
+			retryableErrorCodes: [], // Clear default retryable codes
 		});
-		jest.advanceTimersByTime(1000);
-		const result = await promise;
 
 		expect(result).toBe("success");
 		expect(shouldRetry).toHaveBeenCalled();
 		expect(fn).toHaveBeenCalledTimes(2);
-	});
+	}, 10000);
 
 	it("should not retry if shouldRetry returns false", async () => {
 		const fn = jest.fn().mockRejectedValue(new Error("Custom error"));
 
-		const promise = withRetry(fn, {
-			maxRetries: 3,
-			shouldRetry: () => false,
-		});
-		jest.advanceTimersByTime(1000);
-
-		await expect(promise).rejects.toThrow();
+		await expect(
+			withRetry(fn, {
+				maxRetries: 3,
+				retryDelay: 10,
+				shouldRetry: () => false,
+			}),
+		).rejects.toThrow();
 		expect(fn).toHaveBeenCalledTimes(1);
 	});
 });

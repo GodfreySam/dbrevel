@@ -168,6 +168,45 @@ class UserStore:
             )
             return False
 
+    async def update_user(
+        self,
+        user_id: str,
+        role: Optional[str] = None,
+        email_verified: Optional[bool] = None,
+    ) -> Optional[User]:
+        """Update user fields (role, email_verified)."""
+        await self._ensure_connected()
+
+        # Build update dict with only provided fields
+        update_fields = {}
+        if role is not None:
+            if role not in ("user", "admin"):
+                raise ValueError("Role must be 'user' or 'admin'")
+            update_fields["role"] = role
+        if email_verified is not None:
+            update_fields["email_verified"] = email_verified
+
+        if not update_fields:
+            # Nothing to update, return current user
+            return await self.get_by_id(user_id)
+
+        result = await self.db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_fields}
+        )
+
+        if result.matched_count == 0:
+            return None
+
+        return await self.get_by_id(user_id)
+
+    async def delete_user(self, user_id: str) -> bool:
+        """Delete a user by ID."""
+        await self._ensure_connected()
+
+        result = await self.db.users.delete_one({"_id": ObjectId(user_id)})
+        return result.deleted_count > 0
+
 
 # Global user store instance
 # Will be initialized with MongoDB connection

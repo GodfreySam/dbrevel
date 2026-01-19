@@ -45,7 +45,7 @@ describe("Interceptors", () => {
 				json: async () => mockResponse,
 			});
 
-			let interceptedConfig: RequestConfig | null = null;
+			let interceptedConfig: RequestConfig | undefined;
 			client.useRequestInterceptor((config) => {
 				interceptedConfig = config;
 				// Add custom header
@@ -60,8 +60,8 @@ describe("Interceptors", () => {
 
 			await client.query("Get users");
 
-			expect(interceptedConfig).not.toBeNull();
-			expect(interceptedConfig?.url).toContain("/api/v1/query");
+			expect(interceptedConfig).toBeDefined();
+			expect(interceptedConfig!.url).toContain("/api/v1/query");
 		});
 
 		it("should chain multiple request interceptors", async () => {

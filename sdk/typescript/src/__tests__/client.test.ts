@@ -76,7 +76,7 @@ describe("DbRevelClient", () => {
 					method: "POST",
 					headers: expect.objectContaining({
 						"Content-Type": "application/json",
-						"X-Tenant-Key": mockApiKey,
+						"X-Project-Key": mockApiKey,
 					}),
 				}),
 			);

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import "../App.css";
+import Header from "../components/Header";
 import LanguageSupportTable from "../components/LanguageSupportTable";
 import Toast from "../components/Toast/Toast";
 import { config } from "../config";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetchJson } from "../utils/api";
-import Header from "../components/Header";
 // removed unused ErrorBanner import
 
 interface QueryResult {
@@ -96,15 +96,17 @@ export default function Home() {
 	};
 
 	const generateCurl = () => {
-		// Use double quotes for JSON to work cross-platform (Windows compatibility)
 		const jsonPayload = JSON.stringify({ intent: query, dry_run: dryRun });
+		// Escape single quotes for bash -d '...' (e.g. "Bob's" -> "Bob'\''s")
+		const escaped = jsonPayload.replace(/'/g, "'\\''");
 		return `curl -X POST "${config.apiUrl}/query" \\
   -H "Content-Type: application/json" \\
   -H "X-Project-Key: ${config.accountKey}" \\
-  -d '${jsonPayload}'`;
+  -d '${escaped}'`;
 	};
 
 	const generateSDKCode = () => {
+		const intentStr = JSON.stringify(query);
 		return `import { DbRevelClient } from '@dbrevel/sdk';
 
 const client = new DbRevelClient({
@@ -112,7 +114,7 @@ const client = new DbRevelClient({
   apiKey: '${config.accountKey}',
 });
 
-const result = await client.query('${query}', {
+const result = await client.query(${intentStr}, {
   dryRun: ${dryRun}
 });
 
@@ -120,6 +122,7 @@ console.log(result.data);`;
 	};
 
 	const generateFetchCode = () => {
+		const intentStr = JSON.stringify(query);
 		return `const response = await fetch('${config.apiUrl}/query', {
   method: 'POST',
   headers: {
@@ -127,7 +130,7 @@ console.log(result.data);`;
     'X-Project-Key': '${config.accountKey}',
   },
   body: JSON.stringify({
-    intent: '${query}',
+    intent: ${intentStr},
     dry_run: ${dryRun},
   }),
 });

@@ -49,15 +49,13 @@ const client = new DbRevelClient({
 	baseURL: "https://api.dbrevel.io",
 });
 
-const result = await client.query({
-	intent: "Get all users from Lagos",
-});
+const result = await client.query("Get all users from Lagos");
 ```
 
 ### REST API
 
 ```bash
-curl -X POST https://api.dbrevel.io/v1/query \
+curl -X POST https://api.dbrevel.io/api/v1/query \
   -H "X-Project-Key: your_project_api_key" \
   -H "Content-Type: application/json" \
   -d '{"intent": "Get all active users"}'

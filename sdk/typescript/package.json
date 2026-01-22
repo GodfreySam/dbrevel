@@ -1,6 +1,6 @@
 {
 	"name": "@dbrevel/sdk",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "TypeScript SDK for DbRevel - AI-powered database SDK that converts natural language into secure, optimized queries for any database",
 	"author": "Godfrey Samuel <godfreysam09@gmail.com>",
 	"license": "MIT",
@@ -14,8 +14,7 @@
 		"url": "https://github.com/GodfreySam/dbrevel/issues"
 	},
 	"publishConfig": {
-		"access": "public",
-		"provenance": true
+		"access": "public"
 	},
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/esm/index.js",
@@ -75,8 +74,5 @@
 		"ts-jest": "^29.1.0",
 		"typescript": "^5.3.0"
 	},
-	"dependencies": {},
-	"publishConfig": {
-		"access": "public"
-	}
+	"dependencies": {}
 }

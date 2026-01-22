@@ -1,51 +1,105 @@
-"""Simple in-memory cache for schemas and query plans"""
+"""Redis-based cache for schemas and query plans, replacing the simple in-memory cache."""
 import hashlib
-import json
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+import orjson
+import redis
+from typing import Any, Optional
+
+from app.core.config import settings
+
+# Initialize Redis client from the URL in settings
+# The client will be shared across the application
+try:
+    # Adding decode_responses=True to handle strings automatically
+    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+    # Check if the connection is alive
+    redis_client.ping()
+except redis.exceptions.ConnectionError as e:
+    # If Redis is not available, log a warning and use a mock client
+    # This allows the app to run without Redis for local dev or testing
+    print(f"WARNING: Redis connection failed: {e}. Caching will be disabled.")
+    # A simple mock client that does nothing, to avoid errors
+    class MockRedis:
+        def get(self, name): return None
+        def set(self, name, value, ex=None): pass
+        def flushdb(self): pass
+        def ping(self): raise redis.exceptions.ConnectionError
+    redis_client = MockRedis()
+except Exception as e:
+    print(f"An unexpected error occurred with Redis: {e}. Caching will be disabled.")
+    class MockRedis:
+        def get(self, name): return None
+        def set(self, name, value, ex=None): pass
+        def flushdb(self): pass
+        def ping(self): raise redis.exceptions.ConnectionError
+    redis_client = MockRedis()
 
 
-class SimpleCache:
-    """Thread-safe in-memory cache with TTL"""
+class RedisCache:
+    """Redis-based cache with TTL and automatic serialization."""
 
-    def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+    def __init__(self, client, prefix: str = "cache"):
+        self.client = client
+        self.prefix = prefix
+
+    def _get_key(self, key: str) -> str:
+        """Applies a prefix to the key to avoid collisions in Redis."""
+        return f"{self.prefix}:{key}"
 
     def get(self, key: str) -> Optional[Any]:
-        """Get value from cache if not expired"""
-        if key not in self._cache:
+        """Get value from Redis cache and deserialize it."""
+        try:
+            cached_value = self.client.get(self._get_key(key))
+            if cached_value is None:
+                return None
+            # Deserialize using orjson, which is faster than standard json
+            return orjson.loads(cached_value)
+        except (redis.exceptions.RedisError, orjson.JSONDecodeError) as e:
+            print(f"Error getting value from Redis cache: {e}")
             return None
-
-        entry = self._cache[key]
-        if datetime.now() > entry['expires_at']:
-            del self._cache[key]
-            return None
-
-        # Deserialize if it's a dict (Pydantic model)
-        value = entry['value']
-        if isinstance(value, dict) and '_pydantic_model' in str(type(value)):
-            # Return as-is for Pydantic models (they're already objects)
-            return value
-        return value
 
     def set(self, key: str, value: Any, ttl_seconds: int = 3600):
-        """Set value in cache with TTL"""
-        # Pydantic models can be stored directly
-        self._cache[key] = {
-            'value': value,
-            'expires_at': datetime.now() + timedelta(seconds=ttl_seconds)
-        }
+        """Serialize value and set it in Redis cache with a TTL."""
+        try:
+            # Default function to handle objects that orjson can't serialize
+            # This is particularly useful for Pydantic models
+            def default_serializer(obj):
+                if hasattr(obj, 'model_dump'):
+                    return obj.model_dump()
+                return str(obj)
+
+            # Serialize using orjson with the default serializer
+            serialized_value = orjson.dumps(value, default=default_serializer)
+            self.client.set(self._get_key(key), serialized_value, ex=ttl_seconds)
+        except redis.exceptions.RedisError as e:
+            print(f"Error setting value in Redis cache: {e}")
 
     def clear(self):
-        """Clear all cache entries"""
-        self._cache.clear()
+        """Clear all cache entries managed by this instance (by prefix).
+        This is safer than flushdb if Redis is shared.
+        """
+        try:
+            # Using scan to avoid blocking the server with a large number of keys
+            for key in self.client.scan_iter(f"{self.prefix}:*"):
+                self.client.delete(key)
+        except redis.exceptions.RedisError as e:
+            print(f"Error clearing Redis cache with prefix '{self.prefix}': {e}")
 
-    def generate_key(self, *args) -> str:
-        """Generate cache key from arguments"""
-        key_str = json.dumps(args, sort_keys=True, default=str)
-        return hashlib.md5(key_str.encode()).hexdigest()
 
+    def generate_key(self, *args, **kwargs) -> str:
+        """Generate a consistent cache key from arguments."""
+        # Use orjson for fast and consistent serialization
+        # The default function ensures complex objects are handled
+        def default_serializer(obj):
+            if hasattr(obj, 'model_dump'):
+                return obj.model_dump(mode='json')
+            return str(obj)
 
-# Global cache instances
-schema_cache = SimpleCache()
-query_plan_cache = SimpleCache()
+        # Combine args and kwargs for a complete key
+        key_data = {'args': args, 'kwargs': kwargs}
+        key_str = orjson.dumps(key_data, default=default_serializer, option=orjson.OPT_SORT_KEYS)
+        return hashlib.md5(key_str).hexdigest()
+
+# Global cache instances using the Redis-based cache
+# Using different prefixes for schema and query plans
+schema_cache = RedisCache(redis_client, prefix="schema")
+query_plan_cache = RedisCache(redis_client, prefix="query_plan")

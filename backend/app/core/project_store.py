@@ -6,8 +6,10 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from app.core.encryption import decrypt_database_url, encrypt_database_url, mask_database_url
-from app.core.account_keys import generate_account_key, hash_api_key, verify_api_key
+from app.core.account_keys import (generate_account_key, hash_api_key,
+                                   verify_api_key)
+from app.core.encryption import (decrypt_database_url, encrypt_database_url,
+                                 mask_database_url)
 from app.models.project import Project
 
 
@@ -81,7 +83,18 @@ class MongoDBProjectStore(ProjectStore):
         if self.client is None:
             from motor.motor_asyncio import AsyncIOMotorClient
 
-            self.client = AsyncIOMotorClient(self.mongo_url)
+            # Configure connection pool for better reliability and to reduce background reconnection noise
+            self.client = AsyncIOMotorClient(
+                self.mongo_url,
+                serverSelectionTimeoutMS=10000,  # 10 second timeout for server selection
+                connectTimeoutMS=10000,  # 10 second connection timeout
+                socketTimeoutMS=30000,  # 30 second socket timeout
+                maxPoolSize=10,  # Maximum connections in pool
+                minPoolSize=1,  # Minimum connections in pool
+                maxIdleTimeMS=45000,  # Close idle connections after 45s
+                retryWrites=True,  # Retry writes on transient failures
+                retryReads=True,  # Retry reads on transient failures
+            )
             self.db = self.client[self.db_name]
             # Create indexes
             await self.db.projects.create_index("project_id", unique=True)
@@ -98,13 +111,15 @@ class MongoDBProjectStore(ProjectStore):
 
         # Verify DB is connected
         if self.db is None:
-            logger.error("❌ MongoDB database is None after _ensure_connected()")
+            logger.error(
+                "❌ MongoDB database is None after _ensure_connected()")
             return None
 
         # Try direct lookup first (for backward compatibility)
         project_doc = await self.db.projects.find_one({"api_key": api_key, "is_active": True})
         if project_doc:
-            logger.info(f"✓ Found project via direct lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
+            logger.info(
+                f"✓ Found project via direct lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
             return self._doc_to_project(project_doc)
 
         logger.info(f"  Direct lookup failed, trying hash-based lookup...")
@@ -113,7 +128,8 @@ class MongoDBProjectStore(ProjectStore):
         api_key_hash = hash_api_key(api_key)
         project_doc = await self.db.projects.find_one({"api_key_hash": api_key_hash, "is_active": True})
         if project_doc:
-            logger.info(f"✓ Found project via hash lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
+            logger.info(
+                f"✓ Found project via hash lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
             return self._doc_to_project(project_doc)
 
         logger.warning(f"⚠️  No project found for API key: {api_key[:20]}...")
@@ -170,8 +186,10 @@ class MongoDBProjectStore(ProjectStore):
             project_id = generate_project_id()
 
         # Encrypt database URLs
-        encrypted_pg_url = encrypt_database_url(postgres_url) if postgres_url else ""
-        encrypted_mongo_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
+        encrypted_pg_url = encrypt_database_url(
+            postgres_url) if postgres_url else ""
+        encrypted_mongo_url = encrypt_database_url(
+            mongodb_url) if mongodb_url else ""
 
         now = datetime.utcnow()
         project_doc = {
@@ -211,9 +229,11 @@ class MongoDBProjectStore(ProjectStore):
 
         # Encrypt database URLs if they're being updated
         if "postgres_url" in updates and updates["postgres_url"]:
-            updates["postgres_url"] = encrypt_database_url(updates["postgres_url"])
+            updates["postgres_url"] = encrypt_database_url(
+                updates["postgres_url"])
         if "mongodb_url" in updates and updates["mongodb_url"]:
-            updates["mongodb_url"] = encrypt_database_url(updates["mongodb_url"])
+            updates["mongodb_url"] = encrypt_database_url(
+                updates["mongodb_url"])
 
         # Update timestamp
         updates["updated_at"] = datetime.utcnow()
@@ -235,7 +255,8 @@ class MongoDBProjectStore(ProjectStore):
         await self._ensure_connected()
 
         result = await self.db.projects.update_one(
-            {"project_id": project_id}, {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+            {"project_id": project_id}, {
+                "$set": {"is_active": False, "updated_at": datetime.utcnow()}}
         )
         return result.modified_count > 0
 

@@ -44,7 +44,7 @@
 	"scripts": {
 		"build": "npm run build:cjs && npm run build:esm && npm run build:types",
 		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json",
+		"build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.cjs",
 		"build:types": "tsc -p tsconfig.types.json",
 		"dev": "tsc --watch",
 		"test": "jest",

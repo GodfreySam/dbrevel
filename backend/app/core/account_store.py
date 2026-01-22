@@ -402,7 +402,18 @@ class MongoDBAccountStore(AccountStore):
             from motor.motor_asyncio import AsyncIOMotorClient
             logging.info(
                 f"MongoDBAccountStore: Connecting to MongoDB URL: {self.mongo_url}, database: {self.db_name}")
-            self.client = AsyncIOMotorClient(self.mongo_url)
+            # Configure connection pool for better reliability and to reduce background reconnection noise
+            self.client = AsyncIOMotorClient(
+                self.mongo_url,
+                serverSelectionTimeoutMS=10000,  # 10 second timeout for server selection
+                connectTimeoutMS=10000,  # 10 second connection timeout
+                socketTimeoutMS=30000,  # 30 second socket timeout
+                maxPoolSize=10,  # Maximum connections in pool
+                minPoolSize=1,  # Minimum connections in pool
+                maxIdleTimeMS=45000,  # Close idle connections after 45s
+                retryWrites=True,  # Retry writes on transient failures
+                retryReads=True,  # Retry reads on transient failures
+            )
             self.db = self.client[self.db_name]
             # Verify connection by pinging
             await self.client.admin.command('ping')

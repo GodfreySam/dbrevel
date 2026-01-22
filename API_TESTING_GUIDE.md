@@ -429,7 +429,7 @@ curl -X POST "https://api.dbrevel.io/api/v1/query" \
 
 ```json
 {
-  "detail": "Failed to parse Gemini response as JSON. Response: ..."
+  "detail": "Failed to parse AI model response as JSON. Response: ..."
 }
 ```
 

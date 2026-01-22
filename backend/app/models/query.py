@@ -64,10 +64,62 @@ class QueryRequest(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "example": {
-                "intent": "Get customers in Lagos with more than 5 orders",
-                "dry_run": False
-            }
+            "examples": [
+                {
+                    "summary": "Get all users",
+                    "description": "Simple query to fetch all users from the database",
+                    "value": {
+                        "intent": "Get all users",
+                        "context": None,
+                        "dry_run": False
+                    }
+                },
+                {
+                    "summary": "Get customers in Lagos with more than 5 orders",
+                    "description": "Complex query with filters and aggregations",
+                    "value": {
+                        "intent": "Get customers in Lagos with more than 5 orders",
+                        "context": None,
+                        "dry_run": False
+                    }
+                },
+                {
+                    "summary": "Show products with price over 100",
+                    "description": "Filter products by price threshold",
+                    "value": {
+                        "intent": "Show products with price over 100",
+                        "context": None,
+                        "dry_run": False
+                    }
+                },
+                {
+                    "summary": "Count orders by status",
+                    "description": "Aggregate query to count orders grouped by status",
+                    "value": {
+                        "intent": "Count orders by status",
+                        "context": None,
+                        "dry_run": False
+                    }
+                },
+                {
+                    "summary": "Get recent reviews",
+                    "description": "Query MongoDB collection for recent reviews",
+                    "value": {
+                        "intent": "Get recent reviews",
+                        "context": None,
+                        "dry_run": False
+                    }
+                },
+                {
+                    "summary": "Dry run - validate query without executing",
+                    "description": "Use dry_run=true to validate query generation without executing",
+                    "value": {
+                        "intent": "Get all users",
+                        "context": None,
+                        "dry_run": True
+                    }
+                }
+            ]
         }
     }
 

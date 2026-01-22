@@ -33,6 +33,8 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
     """
     Test PostgreSQL connection and return schema preview.
 
+    Handles Supabase/pgbouncer connection pooler quirks with retry logic.
+
     Args:
         url: PostgreSQL connection URL
         timeout: Connection timeout in seconds
@@ -43,10 +45,26 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
     adapter = None
     try:
         adapter = PostgresAdapter(url)
-        await asyncio.wait_for(adapter.connect(), timeout=timeout)
+        # Retry connection attempt (pgbouncer can have transient issues)
+        for attempt in range(2):
+            try:
+                await asyncio.wait_for(adapter.connect(), timeout=timeout)
+                break
+            except Exception as e:
+                if attempt == 1:  # Last attempt
+                    raise
+                await asyncio.sleep(0.5)  # Brief delay before retry
 
-        # Introspect schema
-        schema = await adapter.introspect_schema()
+        # Introspect schema with retry for transient errors
+        schema = None
+        for attempt in range(2):
+            try:
+                schema = await adapter.introspect_schema()
+                break
+            except Exception as e:
+                if attempt == 1:  # Last attempt
+                    raise
+                await asyncio.sleep(0.5)  # Brief delay before retry
 
         # Create schema preview (first few tables with column counts)
         # Ensure tables is a list before slicing
@@ -86,14 +104,20 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
                 pass
         error_msg = str(e)
         import logging
-        logging.error(f"PostgreSQL connection error: {error_msg}", exc_info=True)
+        logging.error(
+            f"PostgreSQL connection error: {error_msg}", exc_info=True)
         # Don't expose full connection details in error
+        # Handle Supabase/pgbouncer specific errors
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
         elif "does not exist" in error_msg.lower():
             error_msg = "Database does not exist"
         elif "refused" in error_msg.lower() or "connection" in error_msg.lower():
             error_msg = "Connection refused - check host and port"
+        elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            error_msg = "Connection timeout - database may be unreachable or pooler is busy"
+        elif "pool" in error_msg.lower() or "pgbouncer" in error_msg.lower():
+            error_msg = "Connection pool error - try again in a moment"
 
         return ConnectionTestResult(success=False, error=error_msg)
 
@@ -131,7 +155,8 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
 
         # Create schema preview
         # Ensure collections is a list before slicing
-        collections_list_items = list(schema.collections.items()) if schema.collections else []
+        collections_list_items = list(
+            schema.collections.items()) if schema.collections else []
         schema_preview = {
             "database_name": schema.name,
             "collection_count": len(collections_list_items),
@@ -166,7 +191,8 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
                 pass
         error_msg = str(e)
         import logging
-        logging.error(f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
+        logging.error(
+            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
         # Sanitize error messages
         if "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
@@ -176,4 +202,3 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             error_msg = "Not authorized - check database permissions"
 
         return ConnectionTestResult(success=False, error=error_msg)
-

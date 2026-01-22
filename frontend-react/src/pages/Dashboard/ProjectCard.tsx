@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Spinner from "../../components/Spinner/Spinner";
 import { useAuth } from "../../contexts/AuthContext";
 import { ProjectDetail, ProjectSummary } from "../../types/api";
 import { apiFetchJson } from "../../utils/api";
@@ -91,6 +92,11 @@ export default function ProjectCard({
 				<span className="project-expand-icon">{isExpanded ? "▼" : "▶"}</span>
 			</div>
 
+			{isExpanded && !detail && (
+				<div className="project-expanded-content">
+					<Spinner />
+				</div>
+			)}
 			{isExpanded && detail && (
 				<div className="project-expanded-content">
 					{/* API Key Section */}

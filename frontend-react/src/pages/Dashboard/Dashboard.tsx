@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
 import Header from "../../components/Header";
 import { useAuth } from "../../contexts/AuthContext";
 import { AccountDetail, ProjectDetail, ProjectSummary } from "../../types/api";
 import { apiFetchJson } from "../../utils/api";
 import AccountInfo from "./AccountInfo";
-import CreateProjectModal from "./CreateProject";
 import "./Dashboard.css";
-import EditProjectModal from "./EditProject";
 import ProjectCard from "./ProjectCard";
 import SdkIntegrationGuide from "./SdkIntegrationGuide";
+import Spinner from "../../components/Spinner/Spinner"; // Assuming you have a Spinner component
+
+// Lazy load modals
+const CreateProjectModal = lazy(() => import("./CreateProject"));
+const EditProjectModal = lazy(() => import("./EditProject"));
 
 export default function Dashboard() {
 	const { user, token, logout, refreshUser } = useAuth();
@@ -137,20 +140,21 @@ export default function Dashboard() {
 			isLoadingRef.current = true;
 
 			try {
-				// Load account info
-				const accountData = await apiFetchJson<AccountDetail>(
-					"/accounts/me/info-jwt",
-					{
-						headers: {
-							Authorization: `Bearer ${token}`,
+				// Load account info and projects in parallel
+				const [accountData] = await Promise.all([
+					apiFetchJson<AccountDetail>(
+						"/accounts/me/info-jwt",
+						{
+							headers: {
+								Authorization: `Bearer ${token}`,
+							},
 						},
-					},
-					logout,
-				);
-				setAccountInfo(accountData);
+						logout,
+					),
+					loadProjects(),
+				]);
 
-				// Load projects
-				await loadProjects();
+				setAccountInfo(accountData);
 
 				// Load stored API keys from localStorage
 				const storedKeys = localStorage.getItem("project_api_keys");
@@ -347,27 +351,29 @@ export default function Dashboard() {
 			</div>
 
 			{/* Modals */}
-			{isCreateModalOpen && (
-				<CreateProjectModal
-					isOpen={isCreateModalOpen}
-					onClose={() => setIsCreateModalOpen(false)}
-					onSuccess={() => {
-						setIsCreateModalOpen(false);
-						loadProjects();
-					}}
-				/>
-			)}
-			{editingProjectId && (
-				<EditProjectModal
-					isOpen={!!editingProjectId}
-					projectId={editingProjectId}
-					onClose={() => setEditingProjectId(null)}
-					onSuccess={() => {
-						setEditingProjectId(null);
-						loadProjects();
-					}}
-				/>
-			)}
+			<Suspense fallback={<div className="modal-loading-fallback"><Spinner /></div>}>
+				{isCreateModalOpen && (
+					<CreateProjectModal
+						isOpen={isCreateModalOpen}
+						onClose={() => setIsCreateModalOpen(false)}
+						onSuccess={() => {
+							setIsCreateModalOpen(false);
+							loadProjects();
+						}}
+					/>
+				)}
+				{editingProjectId && (
+					<EditProjectModal
+						isOpen={!!editingProjectId}
+						projectId={editingProjectId}
+						onClose={() => setEditingProjectId(null)}
+						onSuccess={() => {
+							setEditingProjectId(null);
+							loadProjects();
+						}}
+					/>
+				)}
+			</Suspense>
 		</div>
 	);
 }

@@ -1,6 +1,6 @@
 # DbRevel - AI-Powered Universal Database SDK
 
-**DBRevel is an AI-powered database SDK that converts natural language into secure, optimized queries for any database. Built on Gemini 3, it eliminates 60% of backend boilerplate—so developers can ship faster, startups can move leaner, and databases become accessible to everyone.**
+**DBRevel is an AI-powered database SDK that converts natural language into secure, optimized queries for any database. Designed with scalability in mind, it supports multiple AI models and eliminates 60% of backend boilerplate—so developers can ship faster, startups can move leaner, and databases become accessible to everyone.**
 
 ## 🚀 Try It Live
 
@@ -17,21 +17,21 @@ DbRevel is a multi-account SaaS platform and SDK that bridges the gap between na
 
 - **Natural Language Processing** - Convert plain English to optimized SQL/MongoDB queries
 - **Multi-Database Support** - PostgreSQL and MongoDB (more coming soon)
-- **AI-Powered Intelligence** - Built on Google Gemini 3 for accurate query generation
+- **AI-Powered Intelligence** - Scalable architecture supporting multiple AI models for accurate query generation
 - **Security First** - Query validation, RBAC, audit trails, and encryption
 - **Multi-Account Architecture** - Isolated databases and API usage per account
 - **Developer-Friendly SDKs** - Official TypeScript SDK with Python and Go coming soon
 
 ## 🎯 Key Features
 
-- ✅ **Natural Language Queries** - "Get all users from Lagos" → Optimized SQL/MongoDB
-- ✅ **Multi-Database Support** - PostgreSQL, MongoDB (MySQL, Redis coming soon)
-- ✅ **Security Built-in** - Query validation, RBAC, encryption, audit trails
-- ✅ **Multi-Account SaaS Ready** - Per-project databases and Gemini usage
-- ✅ **Project Management** - Organize dev/staging/prod environments
-- ✅ **Admin Dashboard** - Platform management with usage analytics
-- ✅ **TypeScript SDK** - Official SDK for seamless integration
-- ✅ **REST API** - Works with any programming language
+-  **Natural Language Queries** - "Get all users from Lagos" → Optimized SQL/MongoDB
+-  **Multi-Database Support** - PostgreSQL, MongoDB (MySQL, Redis coming soon)
+-  **Security Built-in** - Query validation, RBAC, encryption, audit trails
+-  **Multi-Account SaaS Ready** - Per-project databases and AI model usage tracking
+-  **Project Management** - Organize dev/staging/prod environments
+-  **Admin Dashboard** - Platform management with usage analytics
+-  **TypeScript SDK** - Official SDK for seamless integration
+-  **REST API** - Works with any programming language
 
 ## 📦 SDK & Integration
 

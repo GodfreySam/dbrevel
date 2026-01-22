@@ -1,0 +1,24 @@
+{
+  "name": "dbrevel-demo",
+  "version": "1.0.0",
+  "description": "Demo examples for DbRevel SDK and direct API usage",
+  "type": "module",
+  "main": "sdk-example.js",
+  "scripts": {
+    "sdk": "node sdk-example.js",
+    "api": "node api-fetch-example.js",
+    "all": "node sdk-example.js && echo '\n---\n' && node api-fetch-example.js"
+  },
+  "keywords": [
+    "dbrevel",
+    "database",
+    "sdk",
+    "demo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@dbrevel/sdk": "^0.2.0",
+    "dotenv": "^16.4.5"
+  }
+}

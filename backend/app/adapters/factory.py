@@ -63,12 +63,14 @@ class AdapterFactory:
         if account.postgres_url:
             pg_db_name = "postgres"  # Default
             try:
-                logger.info(f"Initializing PostgreSQL adapter for account {account.id}")
+                logger.info(
+                    f"Initializing PostgreSQL adapter for account {account.id}")
                 decrypted_pg_url = decrypt_database_url(account.postgres_url)
                 pg_db_name = decrypted_pg_url.split("/")[-1].split("?")[0]
                 postgres = PostgresAdapter(decrypted_pg_url)
                 await postgres.connect()
-                await postgres.introspect_schema()
+                # Don't introspect schema during startup - do it lazily when needed
+                # This speeds up startup and avoids connection issues
                 adapters[pg_db_name] = postgres
                 logger.info(
                     f"✓ PostgreSQL adapter created for account {account.id} (db: {pg_db_name})"
@@ -96,18 +98,21 @@ class AdapterFactory:
             # This ensures consistency with how queries might reference the MongoDB database
             mongo_adapter_key = "mongodb"
             try:
-                logger.info(f"Initializing MongoDB adapter for account {account.id}")
+                logger.info(
+                    f"Initializing MongoDB adapter for account {account.id}")
                 decrypted_mongo_url = decrypt_database_url(account.mongodb_url)
                 # The actual database name from the URL might be different,
                 # but for consistency with query plans, we'll use "mongodb" as the key.
                 # The MongoDBAdapter constructor still needs the actual db_name for connection.
-                db_name_from_url = decrypted_mongo_url.split("/")[-1].split("?")[0]
+                db_name_from_url = decrypted_mongo_url.split(
+                    "/")[-1].split("?")[0]
                 if not db_name_from_url:
-                    db_name_from_url = "dbrevel_demo" # Fallback if no db name in URL
+                    db_name_from_url = "dbrevel_demo"  # Fallback if no db name in URL
 
                 mongodb = MongoDBAdapter(decrypted_mongo_url, db_name_from_url)
                 await mongodb.connect()
-                await mongodb.introspect_schema()
+                # Don't introspect schema during startup - do it lazily when needed
+                # This speeds up startup and avoids connection issues
                 adapters[mongo_adapter_key] = mongodb
                 logger.info(
                     f"✓ MongoDB adapter created for account {account.id} (key: {mongo_adapter_key}, actual db: {db_name_from_url})"
@@ -127,7 +132,8 @@ class AdapterFactory:
 
         # If no adapters were created successfully, raise an error
         if not adapters:
-            error_summary = "; ".join([f"{db}: {err}" for db, _, err in errors])
+            error_summary = "; ".join(
+                [f"{db}: {err}" for db, _, err in errors])
             raise RuntimeError(
                 f"Failed to create any database adapters for account {account.id}. "
                 f"Errors: {error_summary}"

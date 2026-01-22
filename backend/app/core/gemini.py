@@ -11,10 +11,13 @@ import logging
 import re
 from typing import Any, Dict, List
 
+import orjson
 from app.core.accounts import AccountConfig
+from app.core.cache import query_plan_cache
 from app.core.config import settings
 from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
                                  InvalidJSONError, InvalidQueryPlanError,
+
                                  MissingBYOApiKeyError)
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext

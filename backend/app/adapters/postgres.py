@@ -7,15 +7,15 @@ library for asynchronous database operations and includes features like connecti
 schema introspection with retry logic, and query execution with result size limits.
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from asyncpg.exceptions import ConnectionDoesNotExistError
-
 from app.adapters.base import DatabaseAdapter
 from app.core.retry import with_retry
 from app.models.schema import ColumnSchema, DatabaseSchema, TableSchema
+from asyncpg.exceptions import ConnectionDoesNotExistError
 
 
 class PostgresAdapter(DatabaseAdapter):
@@ -201,7 +201,8 @@ class PostgresAdapter(DatabaseAdapter):
         if "LIMIT" not in query_upper:
             # Add LIMIT to the query
             query = f"{query.rstrip(';')} LIMIT {max_rows}"
-            logger.debug(f"Added LIMIT {max_rows} to query without explicit limit")
+            logger.debug(
+                f"Added LIMIT {max_rows} to query without explicit limit")
 
         async with self.pool.acquire() as conn:
             if params:
@@ -220,13 +221,48 @@ class PostgresAdapter(DatabaseAdapter):
 
     async def health_check(self) -> bool:
         """
-        Performs a health check on the database connection.
+        Performs a health check on the database connection with retry logic.
+
+        Handles transient errors common with Supabase/pgbouncer connection poolers.
+        Retries up to 3 times with exponential backoff.
 
         Returns:
             `True` if the connection is healthy, `False` otherwise.
         """
-        try:
-            await self.pool.fetchval("SELECT 1")
-            return True
-        except Exception:
+        if not self.pool:
             return False
+
+        # Check if pool is closing/closed and try to reconnect
+        try:
+            if self.pool.is_closing():
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "PostgreSQL pool is closing, attempting to reconnect...")
+                try:
+                    await self.connect()  # Reconnect
+                except Exception as e:
+                    logger.warning(f"Failed to reconnect PostgreSQL pool: {e}")
+                    return False
+        except AttributeError:
+            # is_closing() may not be available in all asyncpg versions
+            pass
+
+        # Retry logic for transient errors (common with pgbouncer/Supabase)
+        logger = logging.getLogger(__name__)
+        for attempt in range(3):
+            try:
+                # Use timeout to prevent hanging on slow connections
+                await asyncio.wait_for(
+                    self.pool.fetchval("SELECT 1"),
+                    timeout=5.0
+                )
+                return True
+            except (asyncio.TimeoutError, Exception) as e:
+                if attempt == 2:  # Last attempt
+                    logger.warning(
+                        f"PostgreSQL health check failed after {attempt + 1} attempts: {e}")
+                    return False
+                # Exponential backoff: 0.5s, 1s, 1.5s
+                await asyncio.sleep(0.5 * (attempt + 1))
+
+        return False

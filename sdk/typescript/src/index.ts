@@ -24,7 +24,7 @@ export type {
 	ResponseInterceptor,
 	RetryConfig,
 	SchemasResponse,
-	TableSchema,
+	TableSchema
 } from "./types";
 
 // Export errors
@@ -33,14 +33,14 @@ export {
 	DbRevelError,
 	DbRevelNetworkError,
 	DbRevelTimeoutError,
-	DbRevelValidationError,
+	DbRevelValidationError
 } from "./errors";
 
 // Export interceptors
 export {
 	createErrorLogger,
 	createRequestLogger,
-	createResponseLogger,
+	createResponseLogger
 } from "./interceptors/logger";
 export type { Logger } from "./interceptors/logger";
 

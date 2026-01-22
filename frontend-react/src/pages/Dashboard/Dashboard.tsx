@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Header from "../../components/Header";
+import Spinner from "../../components/Spinner/Spinner"; // Assuming you have a Spinner component
 import { useAuth } from "../../contexts/AuthContext";
 import { AccountDetail, ProjectDetail, ProjectSummary } from "../../types/api";
 import { apiFetchJson } from "../../utils/api";
@@ -7,7 +8,6 @@ import AccountInfo from "./AccountInfo";
 import "./Dashboard.css";
 import ProjectCard from "./ProjectCard";
 import SdkIntegrationGuide from "./SdkIntegrationGuide";
-import Spinner from "../../components/Spinner/Spinner"; // Assuming you have a Spinner component
 
 // Lazy load modals
 const CreateProjectModal = lazy(() => import("./CreateProject"));

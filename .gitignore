@@ -82,6 +82,7 @@ htmlcov/
 # ============================================
 
 node_modules/
+**/bundle-analysis.html
 .next/
 out/
 build/

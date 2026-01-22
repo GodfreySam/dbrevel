@@ -26,17 +26,17 @@ console.log(result.metadata.execution_time_ms); // Execution time
 
 ## Features
 
-- ✅ Natural language to database queries
-- ✅ Type-safe responses with TypeScript generics
-- ✅ Comprehensive error handling
-- ✅ Schema introspection
-- ✅ Health checks
-- ✅ Request cancellation support
-- ✅ Response validation
-- ✅ Request/response interceptors
-- ✅ Automatic retry with exponential backoff
-- ✅ Logging interceptors
-- ✅ Schema utilities and helper class
+- Natural language to database queries
+- Type-safe responses with TypeScript generics
+- Comprehensive error handling
+- Schema introspection
+- Health checks
+- Request cancellation support
+- Response validation
+- Request/response interceptors
+- Automatic retry with exponential backoff
+- Logging interceptors
+- Schema utilities and helper class
 
 ## API Reference
 

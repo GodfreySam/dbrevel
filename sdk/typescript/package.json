@@ -1,6 +1,6 @@
 {
 	"name": "@dbrevel/sdk",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "TypeScript SDK for DbRevel - AI-powered database SDK that converts natural language into secure, optimized queries for any database",
 	"author": "Godfrey Samuel <godfreysam09@gmail.com>",
 	"license": "MIT",

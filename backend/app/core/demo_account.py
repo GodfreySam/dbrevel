@@ -38,10 +38,10 @@ def get_demo_database_urls() -> Tuple[str, str]:
 
     1. **Dedicated Cloud URLs (Recommended - Consistent Across All Environments)**:
        - Set DEMO_POSTGRES_URL and DEMO_MONGODB_URL in .env
-       - Points to cloud-hosted databases (Supabase + MongoDB Atlas)
+       - Points to cloud-hosted databases (PostgreSQL + MongoDB)
        - Same demo data available in local dev, staging, and production
        - Example:
-         DEMO_POSTGRES_URL=postgresql://postgres.xxx:pass@aws.pooler.supabase.com:6543/postgres
+         DEMO_POSTGRES_URL=postgresql://user:pass@host.neon.tech/dbname?sslmode=require
          DEMO_MONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net/dbrevel_demo
 
     2. **Derived URLs (Fallback - Environment-Specific)**:
@@ -140,9 +140,10 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
     # Test PostgreSQL
     try:
         # Use direct connection (not pooler) for testing
+        # Replace pooler port (e.g., 6543) with direct port (5432) if present
         test_url = postgres_url.replace(
             ":6543", ":5432").replace("?pgbouncer=true", "")
-        # Disable statement cache for pgbouncer compatibility
+        # Disable statement cache for connection pooler compatibility
         conn = await asyncpg.connect(test_url, timeout=5, statement_cache_size=0)
         await conn.execute("SELECT 1")
         await conn.close()

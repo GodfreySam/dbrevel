@@ -33,7 +33,7 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
     """
     Test PostgreSQL connection and return schema preview.
 
-    Handles Supabase/pgbouncer connection pooler quirks with retry logic.
+    Handles PostgreSQL connection pooler quirks with retry logic.
 
     Args:
         url: PostgreSQL connection URL
@@ -107,7 +107,7 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
         logging.error(
             f"PostgreSQL connection error: {error_msg}", exc_info=True)
         # Don't expose full connection details in error
-        # Handle Supabase/pgbouncer specific errors
+        # Handle PostgreSQL connection pooler errors
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
         elif "does not exist" in error_msg.lower():
@@ -116,7 +116,7 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
             error_msg = "Connection refused - check host and port"
         elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
             error_msg = "Connection timeout - database may be unreachable or pooler is busy"
-        elif "pool" in error_msg.lower() or "pgbouncer" in error_msg.lower():
+        elif "pool" in error_msg.lower() or "pooler" in error_msg.lower():
             error_msg = "Connection pool error - try again in a moment"
 
         return ConnectionTestResult(success=False, error=error_msg)

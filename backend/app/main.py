@@ -132,8 +132,11 @@ async def lifespan(app: FastAPI):
     print("✓ Admin OTP store initialized")
 
     # Ensure demo account and project exist, and seed data if needed
-    await ensure_demo_account()
-    print("✓ Demo account ensured")
+    demo_ok = await ensure_demo_account()
+    if demo_ok:
+        print("✓ Demo account ensured")
+    else:
+        print("⚠️  Demo account setup skipped or failed (MongoDB may be unreachable)")
 
     # Pre-warm demo account adapters (non-blocking - don't fail startup if this fails)
     # Schema introspection is now lazy, so this just establishes connections
@@ -151,31 +154,42 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  Warning: Could not pre-warm demo account adapters: {e}")
         print("   Connections will be established on-demand when needed")
 
-    # VERIFY demo project is accessible via API key
-    from app.core.demo_account import DEMO_PROJECT_API_KEY, DEMO_PROJECT_ID
-    from app.core.project_store import get_project_store
+    # VERIFY demo project is accessible via API key (non-blocking - don't fail startup)
+    try:
+        from app.core.demo_account import DEMO_PROJECT_API_KEY, DEMO_PROJECT_ID
+        from app.core.project_store import get_project_store
 
-    project_store = get_project_store()
-    if project_store:
-        demo_project = await project_store.get_by_api_key_async(DEMO_PROJECT_API_KEY)
-        if demo_project:
-            print(
-                f"✓ Demo project verified: {demo_project.name} is accessible via API key")
-        else:
-            print(
-                f"⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!")
-            print(f"   Demo queries will fail with 'Invalid API key' errors")
-            print(f"   Checking MongoDB connection and indexes...")
-            # Try to fetch by ID to diagnose
-            by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
-            if by_id:
-                print(f"   ✓ Project found by ID: {by_id.name}")
-                print(f"   ✗ But lookup by API key fails - check indexes or query logic")
+        project_store = get_project_store()
+        if project_store:
+            demo_project = await project_store.get_by_api_key_async(DEMO_PROJECT_API_KEY)
+            if demo_project:
+                print(
+                    f"✓ Demo project verified: {demo_project.name} is accessible via API key")
             else:
-                print(f"   ✗ Project not found by ID either - was not created!")
+                print(
+                    f"⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!")
+                print(f"   Demo queries will fail with 'Invalid API key' errors")
+                print(f"   Checking MongoDB connection and indexes...")
+                by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
+                if by_id:
+                    print(f"   ✓ Project found by ID: {by_id.name}")
+                    print(f"   ✗ But lookup by API key fails - check indexes or query logic")
+                else:
+                    print(f"   ✗ Project not found by ID either - was not created!")
+    except Exception as e:
+        logger.warning(
+            "Could not verify demo project (MongoDB may be unreachable): %s. "
+            "Demo queries will fail until MongoDB is available.", e
+        )
 
-    # Ensure default admin user exists
-    await ensure_admin_user()
+    # Ensure default admin user exists (non-blocking - don't fail startup)
+    try:
+        await ensure_admin_user()
+    except Exception as e:
+        logger.warning(
+            "Could not ensure admin user (MongoDB may be unreachable): %s. "
+            "Admin login will fail until MongoDB is available.", e
+        )
 
     yield
 

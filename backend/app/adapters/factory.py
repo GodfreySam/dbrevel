@@ -60,8 +60,9 @@ class AdapterFactory:
         errors = []
 
         # PostgreSQL adapter - decrypt URL before using
+        # Use "postgres" as the adapter key so Gemini query plans (database: "postgres") match.
         if account.postgres_url:
-            pg_db_name = "postgres"  # Default
+            pg_adapter_key = "postgres"
             try:
                 logger.info(
                     f"Initializing PostgreSQL adapter for account {account.id}")
@@ -69,28 +70,26 @@ class AdapterFactory:
                 pg_db_name = decrypted_pg_url.split("/")[-1].split("?")[0]
                 postgres = PostgresAdapter(decrypted_pg_url)
                 await postgres.connect()
-                # Don't introspect schema during startup - do it lazily when needed
-                # This speeds up startup and avoids connection issues
-                adapters[pg_db_name] = postgres
+                adapters[pg_adapter_key] = postgres
                 logger.info(
-                    f"✓ PostgreSQL adapter created for account {account.id} (db: {pg_db_name})"
+                    f"✓ PostgreSQL adapter created for account {account.id} (key: {pg_adapter_key}, actual db: {pg_db_name})"
                 )
             except (asyncio.TimeoutError, TimeoutError) as e:
                 error_msg = (
                     f"Connection timed out for PostgreSQL (Account {account.id})"
                 )
                 logger.warning(error_msg)
-                errors.append((pg_db_name, "timeout", str(e)))
+                errors.append((pg_adapter_key, "timeout", str(e)))
             except ValueError as e:
                 error_msg = (
                     f"PostgreSQL configuration error for account {account.id}: {e}"
                 )
                 logger.error(error_msg)
-                errors.append((pg_db_name, "configuration", str(e)))
+                errors.append((pg_adapter_key, "configuration", str(e)))
             except Exception as e:
                 error_msg = f"Failed to initialize PostgreSQL adapter for account {account.id}: {e}"
                 logger.warning(error_msg, exc_info=True)
-                errors.append((pg_db_name, "connection", str(e)))
+                errors.append((pg_adapter_key, "connection", str(e)))
 
         # MongoDB adapter - decrypt URL before using
         if account.mongodb_url:

@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # Demo Database URLs (cloud-hosted for consistency across all environments)
     # If set, these URLs will be used for demo account instead of deriving from POSTGRES_URL/MONGODB_URL
-    DEMO_POSTGRES_URL: str = ""  # Optional: Direct PostgreSQL URL for demo (e.g., Supabase)
+    DEMO_POSTGRES_URL: str = ""  # Optional: Direct PostgreSQL URL for demo (cloud-hosted PostgreSQL)
     DEMO_MONGODB_URL: str = ""  # Optional: Direct MongoDB URL for demo (e.g., Atlas)
     DEMO_ACCOUNT_ENABLED: bool = True  # Enable/disable automatic demo account creation on startup
 

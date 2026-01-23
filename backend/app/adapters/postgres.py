@@ -38,28 +38,48 @@ class PostgresAdapter(DatabaseAdapter):
         self.pool: Optional[asyncpg.Pool] = None
         self._schema: Optional[DatabaseSchema] = None
 
+    async def _validate_connection(self, conn: asyncpg.Connection) -> None:
+        """Validate a connection by running a simple query. Raises if connection is dead."""
+        try:
+            await conn.fetchval("SELECT 1")
+        except Exception as e:
+            # Connection is dead, let asyncpg handle it
+            raise ConnectionDoesNotExistError("Connection validation failed") from e
+
     async def connect(self) -> None:
         """
         Creates and establishes the connection pool to the database.
 
         This method configures the pool for compatibility with connection
-        poolers like Pgbouncer by disabling the statement cache.
+        poolers by disabling the statement cache and validating connections.
         """
-        # Disable statement cache for pgbouncer compatibility
-        # pgbouncer with transaction/statement pool mode doesn't support prepared statements
+        # Disable statement cache for connection pooler compatibility
+        # Some connection poolers in transaction/statement pool mode don't support prepared statements
+        # max_inactive_connection_lifetime: recycle idle conns before server closes them
+        # setup: validate connections when acquired to catch dead ones early
         self.pool = await asyncpg.create_pool(
             self.connection_string,
-            min_size=2,
+            min_size=1,
             max_size=10,
             command_timeout=60,
-            timeout=20,  # Explicit connection timeout
-            statement_cache_size=0,  # Required for pgbouncer compatibility
+            timeout=20,
+            statement_cache_size=0,
+            max_inactive_connection_lifetime=45,  # More aggressive: recycle before server closes
+            setup=self._validate_connection,  # Validate connections when acquired
         )
 
     async def disconnect(self) -> None:
         """Closes the connection pool and terminates all database connections."""
         if self.pool:
             await self.pool.close()
+            self.pool = None
+
+    async def _reconnect_pool(self) -> None:
+        """Close the pool and create a new one. Use after ConnectionDoesNotExistError so retries get fresh connections."""
+        if self.pool:
+            await self.pool.close()
+            self.pool = None
+        await self.connect()
 
     @with_retry(exceptions=(ConnectionDoesNotExistError,), max_retries=3)
     async def introspect_schema(self) -> DatabaseSchema:
@@ -76,7 +96,7 @@ class PostgresAdapter(DatabaseAdapter):
         if self._schema:
             return self._schema
 
-        query = """
+        meta_query = """
         SELECT
             t.table_name,
             c.column_name,
@@ -112,69 +132,79 @@ class PostgresAdapter(DatabaseAdapter):
         ORDER BY t.table_name, c.ordinal_position
         """
 
-        rows = await self.pool.fetch(query)
+        try:
+            async with self.pool.acquire() as conn:
+                # Validate connection is alive before use
+                # If dead, raise ConnectionDoesNotExistError to trigger reconnect and retry
+                try:
+                    await conn.fetchval("SELECT 1")
+                except (ConnectionDoesNotExistError, Exception) as e:
+                    # Connection is dead or invalid, raise to exit context and trigger reconnect
+                    if isinstance(e, ConnectionDoesNotExistError):
+                        raise
+                    # Wrap other connection errors as ConnectionDoesNotExistError
+                    raise ConnectionDoesNotExistError(f"Connection validation failed: {e}") from e
+                
+                rows = await conn.fetch(meta_query)
 
-        # Group by table
-        tables = {}
-        relationships = []
+                # Group by table
+                tables = {}
+                relationships = []
 
-        for row in rows:
-            table_name = row["table_name"]
+                for row in rows:
+                    table_name = row["table_name"]
 
-            if table_name not in tables:
-                tables[table_name] = TableSchema(
-                    name=table_name, columns=[], indexes=[]
+                    if table_name not in tables:
+                        tables[table_name] = TableSchema(
+                            name=table_name, columns=[], indexes=[]
+                        )
+
+                    column = ColumnSchema(
+                        name=row["column_name"],
+                        type=row["data_type"],
+                        nullable=row["is_nullable"] == "YES",
+                        primary_key=row["is_primary"],
+                        foreign_key=f"{row['foreign_table_name']}.{row['foreign_column_name']}"
+                        if row["foreign_table_name"]
+                        else None,
+                    )
+
+                    tables[table_name].columns.append(column)
+
+                    if row["foreign_table_name"]:
+                        relationships.append(
+                            {
+                                "from": f"{table_name}.{row['column_name']}",
+                                "to": f"{row['foreign_table_name']}.{row['foreign_column_name']}",
+                            }
+                        )
+
+                # Get row counts for each table
+                for table_name in list(tables.keys()):
+                    try:
+                        escaped_table_name = table_name.replace('"', '""')
+                        count_query = f'SELECT COUNT(*) FROM "{escaped_table_name}"'
+                        count = await conn.fetchval(count_query)
+                        tables[table_name].row_count = count
+                    except ConnectionDoesNotExistError:
+                        raise
+                    except Exception as e:
+                        logging.getLogger(__name__).warning(
+                            f"Failed to get row count for table {table_name}: {e}"
+                        )
+                        tables[table_name].row_count = 0
+
+                self._schema = DatabaseSchema(
+                    type="postgres",
+                    name=self.connection_string.split("/")[-1].split("?")[0],
+                    tables=tables,
+                    relationships=relationships,
                 )
+                return self._schema
 
-            column = ColumnSchema(
-                name=row["column_name"],
-                type=row["data_type"],
-                nullable=row["is_nullable"] == "YES",
-                primary_key=row["is_primary"],
-                foreign_key=f"{row['foreign_table_name']}.{row['foreign_column_name']}"
-                if row["foreign_table_name"]
-                else None,
-            )
-
-            tables[table_name].columns.append(column)
-
-            if row["foreign_table_name"]:
-                relationships.append(
-                    {
-                        "from": f"{table_name}.{row['column_name']}",
-                        "to": f"{row['foreign_table_name']}.{row['foreign_column_name']}",
-                    }
-                )
-
-        # Get row counts for each table
-        for table_name in tables:
-            try:
-                # Validate table name against schema to prevent SQL injection
-                if table_name not in tables:
-                    tables[table_name].row_count = 0
-                    continue
-
-                # Use proper identifier quoting to prevent SQL injection
-                # PostgreSQL double-quote escaping: replace " with ""
-                escaped_table_name = table_name.replace('"', '""')
-                query = f'SELECT COUNT(*) FROM "{escaped_table_name}"'
-                count = await self.pool.fetchval(query)
-                tables[table_name].row_count = count
-            except Exception as e:
-                # Log the error but continue with other tables
-                logging.getLogger(__name__).warning(
-                    f"Failed to get row count for table {table_name}: {e}"
-                )
-                tables[table_name].row_count = 0
-
-        self._schema = DatabaseSchema(
-            type="postgres",
-            name=self.connection_string.split("/")[-1],
-            tables=tables,
-            relationships=relationships,
-        )
-
-        return self._schema
+        except ConnectionDoesNotExistError:
+            await self._reconnect_pool()
+            raise
 
     async def execute(
         self, query: str, params: List[Any] = None, max_rows: int = 10000
@@ -223,7 +253,7 @@ class PostgresAdapter(DatabaseAdapter):
         """
         Performs a health check on the database connection with retry logic.
 
-        Handles transient errors common with Supabase/pgbouncer connection poolers.
+        Handles transient errors common with PostgreSQL connection poolers.
         Retries up to 3 times with exponential backoff.
 
         Returns:
@@ -247,7 +277,7 @@ class PostgresAdapter(DatabaseAdapter):
             # is_closing() may not be available in all asyncpg versions
             pass
 
-        # Retry logic for transient errors (common with pgbouncer/Supabase)
+        # Retry logic for transient errors (common with connection poolers)
         logger = logging.getLogger(__name__)
         for attempt in range(3):
             try:

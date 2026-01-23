@@ -1,6 +1,6 @@
 {
 	"name": "@dbrevel/sdk",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"description": "TypeScript SDK for DbRevel - AI-powered database SDK that converts natural language into secure, optimized queries for any database",
 	"author": "Godfrey Samuel <godfreysam09@gmail.com>",
 	"license": "MIT",
@@ -43,7 +43,7 @@
 	"scripts": {
 		"build": "npm run build:cjs && npm run build:esm && npm run build:types",
 		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.cjs",
+		"build:esm": "tsc -p tsconfig.esm.json && node fix-esm-imports.cjs",
 		"build:types": "tsc -p tsconfig.types.json",
 		"dev": "tsc --watch",
 		"test": "jest",

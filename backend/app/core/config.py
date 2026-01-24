@@ -28,11 +28,20 @@ class Settings(BaseSettings):
     MONGODB_URL: str
     REDIS_URL: str = ""
 
+    # Connection Pool Settings (optional - defaults provided)
+    POSTGRES_POOL_MIN_SIZE: int = 1
+    POSTGRES_POOL_MAX_SIZE: int = 10
+    MONGODB_POOL_MIN_SIZE: int = 1
+    MONGODB_POOL_MAX_SIZE: int = 10
+
     # Demo Database URLs (cloud-hosted for consistency across all environments)
     # If set, these URLs will be used for demo account instead of deriving from POSTGRES_URL/MONGODB_URL
-    DEMO_POSTGRES_URL: str = ""  # Optional: Direct PostgreSQL URL for demo (cloud-hosted PostgreSQL)
-    DEMO_MONGODB_URL: str = ""  # Optional: Direct MongoDB URL for demo (e.g., Atlas)
-    DEMO_ACCOUNT_ENABLED: bool = True  # Enable/disable automatic demo account creation on startup
+    # Optional: Direct PostgreSQL URL for demo (cloud-hosted PostgreSQL)
+    DEMO_POSTGRES_URL: str = ""
+    # Optional: Direct MongoDB URL for demo (e.g., Atlas)
+    DEMO_MONGODB_URL: str = ""
+    # Enable/disable automatic demo account creation on startup
+    DEMO_ACCOUNT_ENABLED: bool = True
 
     # Encryption (for database connection strings)
     ENCRYPTION_KEY: str  # Override in .env
@@ -55,6 +64,9 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
+
+    # Sentry Error Tracking (optional - leave empty to disable)
+    SENTRY_DSN: str = ""  # Override in .env
 
     @property
     def allowed_origins_list(self) -> List[str]:

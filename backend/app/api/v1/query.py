@@ -8,9 +8,11 @@ from app.api.deps import get_security_context
 from app.core.accounts import (AccountConfig, get_account_by_api_key_async,
                                get_account_config)
 from app.core.demo_account import DEMO_PROJECT_API_KEY, ensure_demo_account
+from app.core.rate_limit import rate_limit_query
 from app.models.query import QueryRequest, QueryResult, SecurityContext
 from app.services.query_service import query_service
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import (APIRouter, Body, Depends, Header, HTTPException, Request,
+                     status)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -102,8 +104,10 @@ Execute a natural language database query using Gemini AI.
         }
     }
 )
+@rate_limit_query()
 async def execute_query(
-    request: QueryRequest = Body(
+    request: Request,
+    request_body: QueryRequest = Body(
         ...,
         examples={
             "simple_query": {
@@ -170,7 +174,7 @@ async def execute_query(
 
     # Log request for debugging validation issues
     logger.debug(
-        f"Query request received [{trace_id}]: intent='{request.intent}', dry_run={request.dry_run}")
+        f"Query request received [{trace_id}]: intent='{request_body.intent}', dry_run={request_body.dry_run}")
 
     # If no tenant is identified, fall back to the demo project.
     if not tenant:
@@ -202,13 +206,13 @@ async def execute_query(
 
     try:
         # Delegate to the QueryService for full orchestration.
-        return await query_service.execute_query(request, security_ctx, tenant)
+        return await query_service.execute_query(request_body, security_ctx, tenant)
 
     except ValueError as e:
         # Handle validation errors (e.g., invalid query structure).
         error_detail = str(e)
         logger.warning(
-            f"Validation Error [{trace_id}]: {error_detail}. Request body: intent='{request.intent}', context={request.context}, dry_run={request.dry_run}",
+            f"Validation Error [{trace_id}]: {error_detail}. Request body: intent='{request_body.intent}', context={request_body.context}, dry_run={request_body.dry_run}",
             exc_info=True
         )
         raise HTTPException(

@@ -11,6 +11,22 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
+def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
+    """Truncate long error messages to keep logs clean."""
+    error_str = str(error)
+    # Remove verbose topology descriptions from MongoDB errors
+    if "Topology Description" in error_str:
+        parts = error_str.split("Topology Description")
+        if parts:
+            error_str = parts[0].strip()
+    
+    # Truncate if still too long
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+    
+    return error_str
+
+
 class UserStore:
     """Store for managing user accounts."""
 
@@ -22,24 +38,53 @@ class UserStore:
 
     async def _ensure_connected(self):
         """Ensure MongoDB connection is established."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         if self.client is None:
+            logger.info(f"[UserStore] Creating new MongoDB client connection...")
             from motor.motor_asyncio import AsyncIOMotorClient
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
-            # Create indexes
-            await self.db.users.create_index("email", unique=True)
-            await self.db.users.create_index("account_id")
+            logger.info(f"[UserStore] MongoDB client created, creating indexes...")
+            # Create indexes with error handling - don't fail if MongoDB has partial connectivity
+            try:
+                await self.db.users.create_index("email", unique=True)
+                await self.db.users.create_index("account_id")
+                logger.info(f"[UserStore] MongoDB indexes created")
+            except Exception as e:
+                # Log warning but don't fail - indexes may already exist or will be created later
+                error_msg = _truncate_error_message(e)
+                logger.warning(
+                    f"Could not create user store indexes (may already exist or primary unavailable): {error_msg}. "
+                    "The app will continue, but some operations may be slower until indexes are created."
+                )
+        else:
+            logger.debug(f"[UserStore] MongoDB client already exists")
 
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID (MongoDB _id)."""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[UserStore] get_by_id called with user_id={user_id}")
+        
+        logger.info(f"[UserStore] Ensuring MongoDB connection...")
         await self._ensure_connected()
+        logger.info(f"[UserStore] MongoDB connection ensured")
+        
         try:
+            logger.info(f"[UserStore] Querying MongoDB for user _id={user_id}")
             doc = await self.db.users.find_one({"_id": ObjectId(user_id)})
+            logger.info(f"[UserStore] MongoDB query completed: found={doc is not None}")
             if doc:
-                return self._doc_to_user(doc)
-        except Exception:
+                user = self._doc_to_user(doc)
+                logger.info(f"[UserStore] User converted: {user.email if user else 'None'}")
+                return user
+        except Exception as e:
+            logger.error(f"[UserStore] Exception in get_by_id: {e}", exc_info=True)
             # Invalid ObjectId format
             return None
+        logger.info(f"[UserStore] User not found for user_id={user_id}")
         return None
 
     async def get_by_email(self, email: str) -> Optional[User]:

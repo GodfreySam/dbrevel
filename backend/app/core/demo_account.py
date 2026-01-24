@@ -3,13 +3,11 @@
 import os
 from typing import Tuple
 
-import asyncpg
-from app.core.config import settings
 import app.core.account_store as account_store_module
-
+import asyncpg
 from app.core.accounts import AccountConfig
+from app.core.config import settings
 from pymongo import MongoClient
-
 
 # Demo project configuration
 DEMO_PROJECT_API_KEY = "dbrevel_demo_project_key"
@@ -62,7 +60,8 @@ def get_demo_database_urls() -> Tuple[str, str]:
     """
     # Check if dedicated demo URLs are configured (recommended approach)
     if settings.DEMO_POSTGRES_URL and settings.DEMO_MONGODB_URL:
-        print(f"ℹ️  Using dedicated cloud URLs for demo databases (from DEMO_*_URL env vars)")
+        print(
+            f"ℹ️  Using dedicated cloud URLs for demo databases (from DEMO_*_URL env vars)")
         return settings.DEMO_POSTGRES_URL, settings.DEMO_MONGODB_URL
 
     # Fallback: Derive from main database URLs
@@ -141,6 +140,7 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
     try:
         # Use direct connection (not pooler) for testing
         # Replace pooler port (e.g., 6543) with direct port (5432) if present
+        # Works with any connection pooler that uses non-standard ports
         test_url = postgres_url.replace(
             ":6543", ":5432").replace("?pgbouncer=true", "")
         # Disable statement cache for connection pooler compatibility
@@ -297,6 +297,27 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         return False
 
 
+def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
+    """Truncate long error messages to keep logs clean."""
+    error_str = str(error)
+    # Remove verbose DNS resolution details
+    if "DNS operation timed out" in error_str or "resolution lifetime expired" in error_str:
+        # Extract just the main error before DNS details
+        if ":" in error_str:
+            error_str = error_str.split(":")[0] + ": DNS resolution timeout"
+    # Remove verbose topology descriptions from MongoDB errors
+    if "Topology Description" in error_str:
+        parts = error_str.split("Topology Description")
+        if parts:
+            error_str = parts[0].strip()
+
+    # Truncate if still too long
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+
+    return error_str
+
+
 async def ensure_demo_account() -> bool:
     """
     Ensure demo account and demo project exist and are configured correctly.
@@ -327,7 +348,8 @@ async def ensure_demo_account() -> bool:
         # MongoDB creates databases on first write, so seeding can succeed even if test fails
 
         # Step 1: Ensure demo account exists (parent account for demo project)
-        account_store = account_store_module.account_store  # Get current account store instance
+        # Get current account store instance
+        account_store = account_store_module.account_store
         existing_account = await account_store.get_by_id_async(DEMO_ACCOUNT_ID)
 
         if not existing_account:
@@ -342,14 +364,16 @@ async def ensure_demo_account() -> bool:
                 gemini_api_key=None,
                 account_id=DEMO_ACCOUNT_ID,  # Always use "acc_demo_default" as the ID
             )
-            print(f"✓ Demo account created: {DEMO_ACCOUNT_NAME} (ID: {DEMO_ACCOUNT_ID})")
+            print(
+                f"✓ Demo account created: {DEMO_ACCOUNT_NAME} (ID: {DEMO_ACCOUNT_ID})")
 
         # Step 2: Ensure demo project exists under demo account
         from app.core.project_store import get_project_store
 
         project_store = get_project_store()
         if not project_store:
-            print(f"⚠️  Warning: Project store not initialized, skipping demo project creation")
+            print(
+                f"⚠️  Warning: Project store not initialized, skipping demo project creation")
             print(f"   Demo project will be created on first use if needed")
             return True  # Don't fail - allow server to start
 
@@ -364,7 +388,8 @@ async def ensure_demo_account() -> bool:
                 postgres_url=demo_pg_url,
                 mongodb_url=demo_mongo_url,
             )
-            print(f"✓ Demo project updated: {DEMO_PROJECT_NAME} (API Key: {DEMO_PROJECT_API_KEY})")
+            print(
+                f"✓ Demo project updated: {DEMO_PROJECT_NAME} (API Key: {DEMO_PROJECT_API_KEY[:20]}...)")
         else:
             # Create new demo project
             await project_store.create_project_async(
@@ -375,20 +400,22 @@ async def ensure_demo_account() -> bool:
                 mongodb_url=demo_mongo_url,
                 project_id=DEMO_PROJECT_ID,
             )
-            print(f"✓ Demo project created: {DEMO_PROJECT_NAME} (ID: {DEMO_PROJECT_ID}, API Key: {DEMO_PROJECT_API_KEY})")
+            print(
+                f"✓ Demo project created: {DEMO_PROJECT_NAME} (ID: {DEMO_PROJECT_ID}, API Key: {DEMO_PROJECT_API_KEY[:20]}...)")
 
         # VERIFY it was stored correctly and is accessible via API key lookup
         verification = await project_store.get_by_api_key_async(DEMO_PROJECT_API_KEY)
         if verification:
             print(f"  ✓ Verified: Demo project is accessible via API key lookup")
         else:
-            print(f"  ⚠️  WARNING: Demo project created but NOT accessible via API key lookup!")
+            print(
+                f"  ⚠️  WARNING: Demo project created but NOT accessible via API key lookup!")
             print(f"     This will cause 'Invalid API key' errors for demo queries")
             # Diagnose the issue
             by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
             if by_id:
                 print(f"     Project exists in DB with ID: {by_id.id}")
-                print(f"     Stored API key: {by_id.api_key}")
+                print(f"     Stored API key: {by_id.api_key[:20]}...")
                 print(f"     Is active: {by_id.is_active}")
             else:
                 print(f"     Project not found by ID either - creation failed!")
@@ -427,15 +454,19 @@ async def ensure_demo_account() -> bool:
                 print(f"ℹ️  Demo MongoDB database already contains data (skipping seed)")
         except Exception as e:
             import traceback
-            print(f"⚠️  Warning: Could not seed demo MongoDB: {e}")
-            # Always print traceback for seeding errors to help debug
-            print(f"   Traceback: {traceback.format_exc()}")
+            error_msg = _truncate_error_message(e)
+            print(f"⚠️  Warning: Could not seed demo MongoDB: {error_msg}")
+            # Don't print full traceback for DNS/connection errors - too verbose
+            if "DNS" not in str(e) and "Topology" not in str(e):
+                print(f"   Traceback: {traceback.format_exc()}")
 
         return True
 
     except Exception as e:
         # Non-blocking: log warning but don't fail startup
-        print(f"⚠️  Warning: Could not create/update demo account: {e}")
+        error_msg = _truncate_error_message(e)
+        print(
+            f"⚠️  Warning: Could not create/update demo account: {error_msg}")
         return False
 
 

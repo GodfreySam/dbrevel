@@ -19,6 +19,22 @@ from app.core.accounts import AccountConfig
 from app.core.encryption import encrypt_database_url
 
 
+def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
+    """Truncate long error messages to keep logs clean."""
+    error_str = str(error)
+    # Remove verbose topology descriptions from MongoDB errors
+    if "Topology Description" in error_str:
+        parts = error_str.split("Topology Description")
+        if parts:
+            error_str = parts[0].strip()
+    
+    # Truncate if still too long
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+    
+    return error_str
+
+
 def generate_account_id() -> str:
     """Generate a short unique account id (UUID4 hex)."""
     return uuid4().hex
@@ -415,16 +431,32 @@ class MongoDBAccountStore(AccountStore):
                 retryReads=True,  # Retry reads on transient failures
             )
             self.db = self.client[self.db_name]
-            # Verify connection by pinging
-            await self.client.admin.command('ping')
-            logging.info(
-                f"MongoDBAccountStore: Connected to database '{self.db_name}'")
-            # Create indexes
-            await self.db.users.create_index("email", unique=True)
-            await self.db.users.create_index("account_id")
-            await self.db.accounts.create_index("account_id", unique=True)
-            await self.db.accounts.create_index("api_key_hash")
-            logging.info(f"MongoDBAccountStore: Indexes created/verified")
+            # Verify connection by pinging (with error handling for partial connectivity)
+            try:
+                await self.client.admin.command('ping')
+                logging.info(
+                    f"MongoDBAccountStore: Connected to database '{self.db_name}'")
+            except Exception as e:
+                # Log warning but continue - MongoDB may have partial connectivity
+                error_msg = _truncate_error_message(e)
+                logging.warning(
+                    f"MongoDBAccountStore: Ping failed (may have partial connectivity): {error_msg}. "
+                    "The app will continue, but some operations may fail until MongoDB is fully available."
+                )
+            # Create indexes with error handling - don't fail if MongoDB has partial connectivity
+            try:
+                await self.db.users.create_index("email", unique=True)
+                await self.db.users.create_index("account_id")
+                await self.db.accounts.create_index("account_id", unique=True)
+                await self.db.accounts.create_index("api_key_hash")
+                logging.info(f"MongoDBAccountStore: Indexes created/verified")
+            except Exception as e:
+                # Log warning but don't fail - indexes may already exist or will be created later
+                error_msg = _truncate_error_message(e)
+                logging.warning(
+                    f"Could not create account store indexes (may already exist or primary unavailable): {error_msg}. "
+                    "The app will continue, but some operations may be slower until indexes are created."
+                )
 
     async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Async version of get_by_api_key."""

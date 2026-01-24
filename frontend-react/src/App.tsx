@@ -14,7 +14,7 @@ import VerifyEmail from "./pages/VerifyEmail/VerifyEmail";
 
 function App() {
 	return (
-		<BrowserRouter>
+		<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
 			<Routes>
 				<Route path="/" element={<Home />} />
 				<Route path="/docs" element={<ApiDocs />} />

@@ -189,10 +189,13 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
+    import logging
+    logger = logging.getLogger(__name__)
     token = credentials.credentials
     payload = verify_token(token)
 
     if payload is None:
+        logger.warning("Token verification failed - payload is None")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
@@ -201,6 +204,7 @@ async def get_current_user(
 
     user_id: str = payload.get("sub")
     if user_id is None:
+        logger.warning("Token payload missing 'sub' field")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
@@ -211,23 +215,17 @@ async def get_current_user(
     import app.core.user_store as user_store_module
     user_store = user_store_module.user_store
     if user_store is None:
+        logger.error("User store is None - not initialized")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="User store not initialized. Please restart the server.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Log token info for debugging (without exposing full token)
-    token_preview = f"{token[:10]}...{token[-10:]}" if len(
-        token) > 20 else "***"
-    logging.debug(
-        f"get_current_user: Validating token for user_id={user_id} (token: {token_preview})")
-
     user = await user_store.get_by_id(user_id)
 
     if user is None:
-        logging.error(
-            f"get_current_user: User not found for user_id={user_id} from token")
+        logger.warning("User not found for user_id=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",

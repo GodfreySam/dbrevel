@@ -1,10 +1,13 @@
 """Redis-based cache for schemas and query plans, replacing the simple in-memory cache."""
 import hashlib
+import logging
 import orjson
 import redis
 from typing import Any, Optional
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Initialize Redis client from the URL in settings
 # The client will be shared across the application
@@ -13,10 +16,10 @@ try:
     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
     # Check if the connection is alive
     redis_client.ping()
-except redis.exceptions.ConnectionError as e:
-    # If Redis is not available, log a warning and use a mock client
-    # This allows the app to run without Redis for local dev or testing
-    print(f"WARNING: Redis connection failed: {e}. Caching will be disabled.")
+except redis.exceptions.ConnectionError:
+    # If Redis is not available, use a mock client (Redis is optional)
+    # Only log at debug level since Redis is optional for local dev
+    logger.debug("Redis not available - caching will be disabled (this is OK for local development)")
     # A simple mock client that does nothing, to avoid errors
     class MockRedis:
         def get(self, name): return None
@@ -25,7 +28,8 @@ except redis.exceptions.ConnectionError as e:
         def ping(self): raise redis.exceptions.ConnectionError
     redis_client = MockRedis()
 except Exception as e:
-    print(f"An unexpected error occurred with Redis: {e}. Caching will be disabled.")
+    # Unexpected errors - log at info level but don't fail
+    logger.info(f"Redis initialization issue: {type(e).__name__}. Caching will be disabled.")
     class MockRedis:
         def get(self, name): return None
         def set(self, name, value, ex=None): pass
@@ -54,7 +58,7 @@ class RedisCache:
             # Deserialize using orjson, which is faster than standard json
             return orjson.loads(cached_value)
         except (redis.exceptions.RedisError, orjson.JSONDecodeError) as e:
-            print(f"Error getting value from Redis cache: {e}")
+            logger.debug(f"Redis cache get error: {e}")
             return None
 
     def set(self, key: str, value: Any, ttl_seconds: int = 3600):
@@ -71,7 +75,7 @@ class RedisCache:
             serialized_value = orjson.dumps(value, default=default_serializer)
             self.client.set(self._get_key(key), serialized_value, ex=ttl_seconds)
         except redis.exceptions.RedisError as e:
-            print(f"Error setting value in Redis cache: {e}")
+            logger.debug(f"Redis cache set error: {e}")
 
     def clear(self):
         """Clear all cache entries managed by this instance (by prefix).
@@ -82,7 +86,7 @@ class RedisCache:
             for key in self.client.scan_iter(f"{self.prefix}:*"):
                 self.client.delete(key)
         except redis.exceptions.RedisError as e:
-            print(f"Error clearing Redis cache with prefix '{self.prefix}': {e}")
+            logger.debug(f"Redis cache clear error: {e}")
 
 
     def generate_key(self, *args, **kwargs) -> str:

@@ -5,6 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from app.adapters.base import DatabaseAdapter
+from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import DatabaseSchema
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -35,8 +36,8 @@ class MongoDBAdapter(DatabaseAdapter):
             serverSelectionTimeoutMS=10000,  # 10 second timeout for server selection
             connectTimeoutMS=10000,  # 10 second connection timeout
             socketTimeoutMS=30000,  # 30 second socket timeout
-            maxPoolSize=10,  # Maximum connections in pool
-            minPoolSize=1,  # Minimum connections in pool
+            maxPoolSize=settings.MONGODB_POOL_MAX_SIZE,  # Maximum connections in pool
+            minPoolSize=settings.MONGODB_POOL_MIN_SIZE,  # Minimum connections in pool
             maxIdleTimeMS=45000,  # Close idle connections after 45s
             retryWrites=True,  # Retry writes on transient failures
             retryReads=True,  # Retry reads on transient failures
@@ -47,7 +48,7 @@ class MongoDBAdapter(DatabaseAdapter):
         try:
             await self.client.admin.command('ping')
             logger.info(
-                f"MongoDB connected to database '{self.database_name}'")
+                f"MongoDB connected to database '{self.database_name}' (pool: min={settings.MONGODB_POOL_MIN_SIZE}, max={settings.MONGODB_POOL_MAX_SIZE})")
         except Exception as e:
             logger.warning(
                 f"MongoDB ping failed: {e}. Connection may still work.")
@@ -56,7 +57,15 @@ class MongoDBAdapter(DatabaseAdapter):
     async def disconnect(self) -> None:
         """Close MongoDB connection"""
         if self.client:
-            self.client.close()
+            try:
+                # Close the client (this also stops background tasks)
+                self.client.close()
+                # Give it a moment to clean up background tasks
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error closing MongoDB client: {e}")
 
     @with_retry(
         max_retries=3,

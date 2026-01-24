@@ -5,9 +5,15 @@ Each tenant can have multiple projects with separate database configurations.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+
+class DatabaseConfig(BaseModel):
+    """Database configuration for a project."""
+    type: str = Field(..., description="Database type (postgres, mongodb, mysql, redis, etc.)")
+    connection_url: str = Field(..., description="Database connection URL (encrypted)")
 
 
 class Project(BaseModel):
@@ -19,10 +25,14 @@ class Project(BaseModel):
     account_id: str = Field(..., description="Parent account ID")
     api_key: str = Field(...,
                          description="Unique project API key for authentication")
+    # Legacy fields (maintained for backward compatibility)
     postgres_url: str = Field(
-        default="", description="PostgreSQL connection URL (encrypted)")
+        default="", description="PostgreSQL connection URL (encrypted) - legacy")
     mongodb_url: str = Field(
-        default="", description="MongoDB connection URL (encrypted)")
+        default="", description="MongoDB connection URL (encrypted) - legacy")
+    # New format: list of database configurations
+    databases: List[DatabaseConfig] = Field(
+        default_factory=list, description="List of database configurations (new format)")
     created_at: datetime = Field(..., description="Project creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     is_active: bool = Field(
@@ -34,10 +44,14 @@ class ProjectCreateRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100,
                       description="Project name")
+    # Legacy fields (maintained for backward compatibility)
     postgres_url: Optional[str] = Field(
-        default=None, description="PostgreSQL connection URL")
+        default=None, description="PostgreSQL connection URL (legacy)")
     mongodb_url: Optional[str] = Field(
-        default=None, description="MongoDB connection URL")
+        default=None, description="MongoDB connection URL (legacy)")
+    # New format: list of database configurations
+    databases: Optional[List[Dict[str, str]]] = Field(
+        default=None, description="List of database configurations (new format: [{'type': 'postgres', 'connection_url': '...'}, ...])")
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -45,10 +59,14 @@ class ProjectUpdateRequest(BaseModel):
 
     name: Optional[str] = Field(
         default=None, min_length=1, max_length=100, description="Project name")
+    # Legacy fields (maintained for backward compatibility)
     postgres_url: Optional[str] = Field(
-        default=None, description="PostgreSQL connection URL")
+        default=None, description="PostgreSQL connection URL (legacy)")
     mongodb_url: Optional[str] = Field(
-        default=None, description="MongoDB connection URL")
+        default=None, description="MongoDB connection URL (legacy)")
+    # New format: list of database configurations
+    databases: Optional[List[Dict[str, str]]] = Field(
+        default=None, description="List of database configurations (new format)")
 
 
 class ProjectResponse(BaseModel):
@@ -60,6 +78,8 @@ class ProjectResponse(BaseModel):
     api_key: str  # Only shown on creation, masked on retrieval
     postgres_url: str  # Masked for security
     mongodb_url: str  # Masked for security
+    databases: List[Dict[str, str]] = Field(
+        default_factory=list, description="List of database configurations (masked)")
     created_at: datetime
     updated_at: datetime
     is_active: bool

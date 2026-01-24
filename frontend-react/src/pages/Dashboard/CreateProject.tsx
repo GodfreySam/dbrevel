@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiFetchJson } from "../../utils/api";
+import DatabaseInput, { DatabaseConfig } from "../../components/DatabaseInput/DatabaseInput";
 import "./ProjectForm.css";
 
 interface CreateProjectModalProps {
@@ -20,9 +21,19 @@ export default function CreateProjectModal({
 
 	const [formData, setFormData] = useState({
 		name: "",
-		postgres_url: "",
-		mongodb_url: "",
 	});
+	const [databases, setDatabases] = useState<DatabaseConfig[]>([]);
+
+	// Reset form when modal closes
+	useEffect(() => {
+		if (!isOpen) {
+			setFormData({
+				name: "",
+			});
+			setDatabases([]);
+			setError(null);
+		}
+	}, [isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -30,7 +41,43 @@ export default function CreateProjectModal({
 		setLoading(true);
 
 		try {
-			await apiFetchJson(
+			// Convert databases array to backward-compatible format
+			// For now, we'll send both formats for compatibility
+			const payload: any = {
+				name: formData.name.trim(),
+			};
+
+			// Extract postgres and mongodb URLs for backward compatibility
+			const postgresDb = databases.find((db) => db.type === "postgres" && db.connection_url.trim());
+			const mongoDb = databases.find((db) => db.type === "mongodb" && db.connection_url.trim());
+
+			if (postgresDb) {
+				payload.postgres_url = postgresDb.connection_url.trim();
+			}
+			if (mongoDb) {
+				payload.mongodb_url = mongoDb.connection_url.trim();
+			}
+
+			// Also send databases array for future use (backend can ignore if not supported yet)
+			if (databases.length > 0) {
+				payload.databases = databases
+					.filter((db) => db.connection_url.trim())
+					.map((db) => ({
+						type: db.type,
+						connection_url: db.connection_url.trim(),
+					}));
+			}
+
+			const response = await apiFetchJson<{
+				id: string;
+				name: string;
+				api_key: string;
+				postgres_url: string;
+				mongodb_url: string;
+				created_at: string;
+				updated_at: string;
+				is_active: boolean;
+			}>(
 				"/projects",
 				{
 					method: "POST",
@@ -38,14 +85,29 @@ export default function CreateProjectModal({
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
 					},
-					body: JSON.stringify({
-						name: formData.name.trim(),
-						postgres_url: formData.postgres_url.trim() || null,
-						mongodb_url: formData.mongodb_url.trim() || null,
-					}),
+					body: JSON.stringify(payload),
 				},
 				logout,
 			);
+			
+			// Store the API key immediately (only time it's returned in plain text)
+			if (response.api_key) {
+				const storedKeys = localStorage.getItem("project_api_keys");
+				let keysMap = new Map<string, string>();
+				if (storedKeys) {
+					try {
+						keysMap = new Map(JSON.parse(storedKeys));
+					} catch (e) {
+						console.warn("Failed to parse stored API keys:", e);
+					}
+				}
+				keysMap.set(response.id, response.api_key);
+				localStorage.setItem(
+					"project_api_keys",
+					JSON.stringify(Array.from(keysMap.entries())),
+				);
+			}
+			
 			onSuccess();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to create project");
@@ -60,7 +122,17 @@ export default function CreateProjectModal({
 		<div className="modal-overlay">
 			<div className="modal-content">
 				<div className="project-form-card">
-					<h2>Create New Project</h2>
+					<div className="modal-header">
+						<h2>Create New Project</h2>
+						<button
+							type="button"
+							onClick={onClose}
+							className="modal-close-btn"
+							aria-label="Close"
+						>
+							×
+						</button>
+					</div>
 
 					{error && <div className="error-message">{error}</div>}
 
@@ -80,45 +152,13 @@ export default function CreateProjectModal({
 						</div>
 
 						<div className="form-group">
-							<label htmlFor="postgres_url">
-								PostgreSQL Connection URL (Optional)
-							</label>
-							<input
-								type="text"
-								id="postgres_url"
-								value={formData.postgres_url}
-								onChange={(e) =>
-									setFormData({ ...formData, postgres_url: e.target.value })
-								}
-								placeholder="postgresql://user:password@host:5432/dbname"
+							<DatabaseInput
+								databases={databases}
+								onChange={setDatabases}
 							/>
-							<span className="form-hint">
-								Connection string for your PostgreSQL database.
-							</span>
-						</div>
-
-						<div className="form-group">
-							<label htmlFor="mongodb_url">
-								MongoDB Connection URL (Optional)
-							</label>
-							<input
-								type="text"
-								id="mongodb_url"
-								value={formData.mongodb_url}
-								onChange={(e) =>
-									setFormData({ ...formData, mongodb_url: e.target.value })
-								}
-								placeholder="mongodb+srv://user:password@host/dbname"
-							/>
-							<span className="form-hint">
-								Connection string for your MongoDB database.
-							</span>
 						</div>
 
 						<div className="form-actions">
-							<button type="button" onClick={onClose} className="cancel-btn">
-								Close
-							</button>
 							<button type="submit" disabled={loading} className="submit-btn">
 								{loading ? "Creating..." : "Create Project"}
 							</button>

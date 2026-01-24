@@ -754,14 +754,23 @@ async def get_platform_stats(
     all_accounts = await account_store.list_accounts_async()
     total_accounts = len(all_accounts)
 
-    # Count users
+    # Count users (exclude admin users to match Users table behavior)
     await user_store._ensure_connected()
-    total_users = await user_store.db.users.count_documents({})
-    verified_users = await user_store.db.users.count_documents({"email_verified": True})
+    user_filter = {"role": {"$ne": "admin"}}  # Exclude admin users
+    total_users = await user_store.db.users.count_documents(user_filter)
+    verified_users = await user_store.db.users.count_documents({
+        **user_filter,
+        "email_verified": True
+    })
 
-    # Count projects
+    # Count projects (exclude demo project to match real user projects only)
     await project_store._ensure_connected()
-    total_projects = await project_store.db.projects.count_documents({"is_active": True})
+    from app.core.demo_account import DEMO_PROJECT_ID
+    project_filter = {
+        "is_active": True,
+        "project_id": {"$ne": DEMO_PROJECT_ID}  # Exclude demo project
+    }
+    total_projects = await project_store.db.projects.count_documents(project_filter)
 
     # Count queries today (from usage_logs if it exists)
     from datetime import datetime, timedelta

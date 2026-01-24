@@ -1,0 +1,183 @@
+.database-input-container {
+	margin-bottom: 20px;
+}
+
+.database-input-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.database-input-header label {
+	font-weight: 600;
+	margin-bottom: 0;
+}
+
+.add-database-btn {
+	background: #4caf50;
+	color: white;
+	border: none;
+	padding: 8px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	transition: background 0.2s;
+}
+
+.add-database-btn:hover {
+	background: #45a049;
+}
+
+.database-input-empty {
+	padding: 20px;
+	text-align: center;
+	color: #666;
+	background: #f5f5f5;
+	border-radius: 4px;
+	margin-bottom: 12px;
+}
+
+.database-input-item {
+	background: #f9f9f9;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+	padding: 16px;
+	margin-bottom: 12px;
+}
+
+.database-input-row {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+}
+
+.database-type-select {
+	flex: 0 0 140px; /* Reduced from 180px for better balance */
+	min-width: 0;
+}
+
+.database-type-select label {
+	display: block;
+	margin-bottom: 6px;
+	font-size: 14px;
+	font-weight: 500;
+	min-height: 20px; /* Ensure consistent label height */
+	line-height: 20px;
+}
+
+.database-type-select select {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+	background: white;
+	height: 40px; /* Match input height */
+	box-sizing: border-box;
+	transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.database-type-select select:focus {
+	outline: none;
+	border-color: #6a9d3a;
+	box-shadow: 0 0 0 3px rgba(106, 157, 58, 0.1);
+}
+
+.database-url-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.database-url-input label {
+	display: block;
+	margin-bottom: 6px;
+	font-size: 14px;
+	font-weight: 500;
+	min-height: 20px; /* Ensure consistent label height */
+	line-height: 20px;
+}
+
+.existing-db-badge {
+	color: #6a9d3a;
+	font-size: 12px;
+	font-weight: 400;
+	font-style: italic;
+	display: inline;
+	margin-left: 4px;
+}
+
+.database-url-row {
+	display: flex;
+	gap: 8px;
+	align-items: center; /* Center align for better visual alignment */
+}
+
+.database-url-row input {
+	flex: 1;
+	padding: 10px 12px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+	font-family: monospace;
+	height: 40px; /* Match input height */
+	box-sizing: border-box;
+	transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.database-url-row input:focus {
+	outline: none;
+	border-color: #6a9d3a;
+	box-shadow: 0 0 0 3px rgba(106, 157, 58, 0.1);
+}
+
+.remove-database-btn {
+	background: #f44336;
+	color: white;
+	border: none;
+	width: 40px; /* Match input height */
+	height: 40px; /* Match input height */
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 20px;
+	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.2s;
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+.remove-database-btn:hover {
+	background: #da190b;
+}
+
+@media (max-width: 768px) {
+	.database-input-row {
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.database-type-select {
+		flex: 1;
+		width: 100%;
+	}
+
+	.database-url-input {
+		width: 100%;
+	}
+
+	.database-url-row {
+		width: 100%;
+	}
+
+	.database-url-row input {
+		flex: 1;
+		min-width: 0; /* Allow input to shrink on mobile */
+	}
+
+	.remove-database-btn {
+		flex-shrink: 0;
+	}
+}

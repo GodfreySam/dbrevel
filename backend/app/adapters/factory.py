@@ -178,11 +178,28 @@ class AdapterFactory:
         This should be called during application shutdown to ensure graceful
         termination of all database connections.
         """
-        for adapters in self._adapters_by_account.values():
-            for adapter in adapters.values():
-                await adapter.disconnect()
+        import asyncio
+        logger.info(f"Shutting down {len(self._adapters_by_account)} account(s) with adapters...")
+        
+        # Disconnect all adapters in parallel with timeout protection
+        disconnect_tasks = []
+        for account_id, adapters in self._adapters_by_account.items():
+            for db_name, adapter in adapters.items():
+                task = asyncio.create_task(adapter.disconnect())
+                disconnect_tasks.append((account_id, db_name, task))
+        
+        # Wait for all disconnects with timeout
+        for account_id, db_name, task in disconnect_tasks:
+            try:
+                await asyncio.wait_for(task, timeout=2.0)
+                logger.debug(f"Disconnected {db_name} for account {account_id}")
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout disconnecting {db_name} for account {account_id}")
+            except Exception as e:
+                logger.error(f"Error disconnecting {db_name} for account {account_id}: {e}")
 
         self._adapters_by_account.clear()
+        logger.info("Adapter factory shutdown complete")
 
     async def get(self, account: AccountConfig, name: str) -> DatabaseAdapter:
         """

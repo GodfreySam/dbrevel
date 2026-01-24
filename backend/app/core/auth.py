@@ -189,7 +189,6 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    import logging
     logger = logging.getLogger(__name__)
     token = credentials.credentials
     payload = verify_token(token)

@@ -449,7 +449,7 @@ class MongoDBAccountStore(AccountStore):
                 await self.db.users.create_index("account_id")
                 await self.db.accounts.create_index("account_id", unique=True)
                 await self.db.accounts.create_index("api_key_hash")
-                logging.info(f"MongoDBAccountStore: Indexes created/verified")
+                logging.info("MongoDBAccountStore: Indexes created/verified")
             except Exception as e:
                 # Log warning but don't fail - indexes may already exist or will be created later
                 error_msg = _truncate_error_message(e)
@@ -480,7 +480,6 @@ class MongoDBAccountStore(AccountStore):
         await self._ensure_connected()
 
         # Log for debugging
-        import logging
         logging.debug(
             f"MongoDBAccountStore: Querying for account_id={account_id}")
 
@@ -545,8 +544,6 @@ class MongoDBAccountStore(AccountStore):
         """Async version of create_account."""
         await self._ensure_connected()
 
-        import logging
-
         # Use provided account_id, or generate one
         if account_id:
             # Check if account_id already exists
@@ -588,7 +585,7 @@ class MongoDBAccountStore(AccountStore):
         # Validate database name
         if not self.db_name or self.db_name.strip() == "":
             logging.error(
-                f"MongoDBAccountStore: CRITICAL - Database name is empty or invalid!")
+                "MongoDBAccountStore: CRITICAL - Database name is empty or invalid!")
             raise RuntimeError("Database name is empty or invalid")
 
         # Log database info before insert

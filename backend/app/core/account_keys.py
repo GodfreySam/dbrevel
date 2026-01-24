@@ -2,7 +2,6 @@
 
 import secrets
 import hashlib
-from typing import Optional
 
 
 def generate_account_key(prefix: str = "dbrevel") -> str:
@@ -18,8 +17,6 @@ def generate_account_key(prefix: str = "dbrevel") -> str:
     Returns:
         A secure random API key string
     """
-    # Generate 32 bytes of random data (256 bits)
-    random_bytes = secrets.token_bytes(32)
     # Convert to URL-safe base64-like string (using hex for readability)
     token = secrets.token_urlsafe(32)
 

@@ -337,9 +337,6 @@ async def list_all_users(
     if search:
         query_filter["email"] = {"$regex": search, "$options": "i"}
 
-    # Get total count
-    total_count = await user_store.db.users.count_documents(query_filter)
-
     # Paginate and collect docs
     skip = (page - 1) * limit
     cursor = user_store.db.users.find(query_filter).skip(

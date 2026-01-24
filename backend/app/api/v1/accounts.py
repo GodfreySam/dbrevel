@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import List, Optional
 
-from app.adapters.factory import adapter_factory
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
 from app.core.accounts import (AccountConfig, get_account_config,

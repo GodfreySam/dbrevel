@@ -11,7 +11,7 @@ from app.core.demo_account import DEMO_PROJECT_API_KEY, ensure_demo_account
 from app.core.rate_limit import rate_limit_query
 from app.models.query import QueryRequest, QueryResult, SecurityContext
 from app.services.query_service import query_service
-from fastapi import (APIRouter, Body, Depends, Header, HTTPException, Request,
+from fastapi import (APIRouter, Body, Depends, HTTPException, Request,
                      status)
 
 router = APIRouter()

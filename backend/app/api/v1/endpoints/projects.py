@@ -4,12 +4,11 @@ from datetime import datetime
 from typing import List
 
 from app.core.account_keys import generate_account_key
-from app.core.account_store import get_account_store
 from app.core.auth import get_current_user
 from app.core.encryption import (decrypt_database_url, encrypt_database_url,
                                  mask_database_url)
 from app.core.project_store import generate_project_id, get_project_store
-from app.models.project import (Project, ProjectApiKeyRevealResponse,
+from app.models.project import (ProjectApiKeyRevealResponse,
                                 ProjectApiKeyRotateResponse,
                                 ProjectConnectionTestRequest,
                                 ProjectConnectionTestResponse,

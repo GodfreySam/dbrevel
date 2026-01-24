@@ -61,11 +61,11 @@ def get_demo_database_urls() -> Tuple[str, str]:
     # Check if dedicated demo URLs are configured (recommended approach)
     if settings.DEMO_POSTGRES_URL and settings.DEMO_MONGODB_URL:
         print(
-            f"ℹ️  Using dedicated cloud URLs for demo databases (from DEMO_*_URL env vars)")
+            "ℹ️  Using dedicated cloud URLs for demo databases (from DEMO_*_URL env vars)")
         return settings.DEMO_POSTGRES_URL, settings.DEMO_MONGODB_URL
 
     # Fallback: Derive from main database URLs
-    print(f"ℹ️  Deriving demo database URLs from POSTGRES_URL and MONGODB_URL")
+    print("ℹ️  Deriving demo database URLs from POSTGRES_URL and MONGODB_URL")
     postgres_url = settings.POSTGRES_URL
     mongodb_url = settings.MONGODB_URL
 
@@ -112,7 +112,6 @@ def get_demo_database_urls() -> Tuple[str, str]:
             parts = base_url.rsplit("/", 1)
             # e.g., "mongodb://mongodb:27017" or "mongodb://localhost:27017"
             connection_string = parts[0]
-            existing_db = parts[1] if len(parts) > 1 else None
 
             # Use demo database name (replace existing if different, or add if missing)
             demo_mongo_url = f"{connection_string}/{mongo_db_name}{query_str}"
@@ -166,7 +165,6 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
 async def _seed_demo_mongodb(mongodb_url: str) -> bool:
     """Seed MongoDB demo database with sample data."""
     try:
-        import asyncio
         import random
         from datetime import datetime, timedelta
         from urllib.parse import urlparse
@@ -373,8 +371,8 @@ async def ensure_demo_account() -> bool:
         project_store = get_project_store()
         if not project_store:
             print(
-                f"⚠️  Warning: Project store not initialized, skipping demo project creation")
-            print(f"   Demo project will be created on first use if needed")
+                "⚠️  Warning: Project store not initialized, skipping demo project creation")
+            print("   Demo project will be created on first use if needed")
             return True  # Don't fail - allow server to start
 
         existing_project = await project_store.get_by_id_async(DEMO_PROJECT_ID)
@@ -406,11 +404,11 @@ async def ensure_demo_account() -> bool:
         # VERIFY it was stored correctly and is accessible via API key lookup
         verification = await project_store.get_by_api_key_async(DEMO_PROJECT_API_KEY)
         if verification:
-            print(f"  ✓ Verified: Demo project is accessible via API key lookup")
+            print("  ✓ Verified: Demo project is accessible via API key lookup")
         else:
             print(
-                f"  ⚠️  WARNING: Demo project created but NOT accessible via API key lookup!")
-            print(f"     This will cause 'Invalid API key' errors for demo queries")
+                "  ⚠️  WARNING: Demo project created but NOT accessible via API key lookup!")
+            print("     This will cause 'Invalid API key' errors for demo queries")
             # Diagnose the issue
             by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
             if by_id:
@@ -418,7 +416,7 @@ async def ensure_demo_account() -> bool:
                 print(f"     Stored API key: {by_id.api_key[:20]}...")
                 print(f"     Is active: {by_id.is_active}")
             else:
-                print(f"     Project not found by ID either - creation failed!")
+                print("     Project not found by ID either - creation failed!")
 
         # Get the final project's MongoDB URL for seeding
         final_project = await project_store.get_by_id_async(DEMO_PROJECT_ID)

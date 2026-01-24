@@ -1,7 +1,7 @@
 from app.adapters.factory import adapter_factory
 from app.api.deps import get_security_context
 from app.core.accounts import AccountConfig, get_account_config
-from app.core.demo_account import DEMO_PROJECT_API_KEY, get_demo_account_config
+from app.core.demo_account import get_demo_account_config
 from app.models.query import SecurityContext
 from fastapi import APIRouter, Depends, HTTPException, status
 

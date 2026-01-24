@@ -97,7 +97,7 @@ async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> C
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
@@ -168,7 +168,7 @@ async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> Co
 
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Testing MongoDB connection (lightweight)")
+        logger.info("Testing MongoDB connection (lightweight)")
 
         adapter = MongoDBAdapter(url, db_name)
         await asyncio.wait_for(adapter.connect(), timeout=timeout)
@@ -190,7 +190,7 @@ async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> Co
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
@@ -199,7 +199,7 @@ async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> Co
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         error_msg = str(e)
         import logging
@@ -272,7 +272,7 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
@@ -281,7 +281,7 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         error_msg = str(e)
         import logging

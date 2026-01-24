@@ -193,7 +193,9 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         )
 
         # Use motor (async) - MongoDB client will use the database from URL if specified
-        client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        client: AsyncIOMotorClient = AsyncIOMotorClient(
+            mongodb_url, serverSelectionTimeoutMS=5000
+        )
         db = client[db_name]
 
         try:

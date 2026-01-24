@@ -881,7 +881,9 @@ async def get_usage_analytics(
     total_execution_time_ms = 0.0
     total_tokens = 0
     queries_by_type = {"postgres": 0, "mongodb": 0}
-    daily_data: dict[str, dict[str, float]] = {}  # date_str -> {queries, execution_time_ms}
+    daily_data: dict[str, dict[str, float]] = (
+        {}
+    )  # date_str -> {queries, execution_time_ms}
 
     try:
         assert user_store.db is not None  # Type assertion for mypy

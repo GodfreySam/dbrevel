@@ -193,7 +193,11 @@ class MongoDBAdapter(DatabaseAdapter):
             coll = self.db[collection]
         else:
             # Try to extract collection from pipeline
-            if pipeline and isinstance(pipeline[0], dict) and "collection" in pipeline[0]:
+            if (
+                pipeline
+                and isinstance(pipeline[0], dict)
+                and "collection" in pipeline[0]
+            ):
                 collection = pipeline[0]["collection"]
                 if not self._validate_collection_name(collection):
                     raise ValueError(
@@ -205,7 +209,9 @@ class MongoDBAdapter(DatabaseAdapter):
                 raise ValueError("Collection name required for MongoDB queries")
 
         # Add $limit stage if not present to prevent memory issues
-        has_limit = any("$limit" in stage for stage in pipeline if isinstance(stage, dict))
+        has_limit = any(
+            "$limit" in stage for stage in pipeline if isinstance(stage, dict)
+        )
         if not has_limit:
             pipeline.append({"$limit": max_docs})
             logger.debug(f"Added $limit {max_docs} to pipeline without explicit limit")

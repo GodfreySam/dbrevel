@@ -98,7 +98,9 @@ async def get_all_schemas(
     schemas = await adapter_factory.get_all_schemas(tenant)
 
     return {
-        "databases": {name: schema.model_dump() for name, schema in schemas.items() if schema}
+        "databases": {
+            name: schema.model_dump() for name, schema in schemas.items() if schema
+        }
     }
 
 

@@ -125,7 +125,9 @@ class QueryService:
                     "Collection name required for MongoDB queries. The query plan must include a 'collection' field."
                 )
 
-            results = await adapter.execute(query_obj.query, [collection] if collection else None)
+            results = await adapter.execute(
+                query_obj.query, [collection] if collection else None
+            )
         else:
             raise UnsupportedQueryError(
                 f"Unsupported query type: {query_obj.query_type}"
@@ -149,7 +151,10 @@ class QueryService:
                     raise MissingCollectionError(
                         f"Collection name required for MongoDB query on database '{query_obj.database}'"
                     )
-                task = adapter.execute(query_obj.query, [query_obj.collection] if query_obj.collection else None)
+                task = adapter.execute(
+                    query_obj.query,
+                    [query_obj.collection] if query_obj.collection else None,
+                )
             else:
                 raise UnsupportedQueryError(
                     f"Unsupported query type for cross-db query: {query_obj.query_type}"

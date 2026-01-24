@@ -103,7 +103,9 @@ def with_retry(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Coroutine[Any, Any, T]]:
+    def decorator(
+        func: Callable[..., Awaitable[T]]
+    ) -> Callable[..., Coroutine[Any, Any, T]]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             return await retry_with_exponential_backoff(

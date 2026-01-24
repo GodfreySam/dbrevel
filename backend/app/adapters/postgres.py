@@ -65,7 +65,8 @@ class PostgresAdapter(DatabaseAdapter):
         except (asyncio.TimeoutError, TimeoutError) as e:
             # Timeout errors are common during startup/pre-warming - log as warning
             logger.warning(
-                "PostgreSQL connection pool creation timed out (will retry on-demand): %s", e
+                "PostgreSQL connection pool creation timed out (will retry on-demand): %s",
+                e,
             )
             raise
         except Exception as e:

@@ -39,7 +39,9 @@ class MockRedis:
 # The client will be shared across the application
 try:
     # Adding decode_responses=True to handle strings automatically
-    redis_client: RedisClient = redis.from_url(settings.REDIS_URL, decode_responses=True)
+    redis_client: RedisClient = redis.from_url(
+        settings.REDIS_URL, decode_responses=True
+    )
     # Check if the connection is alive
     redis_client.ping()
 except redis.exceptions.ConnectionError:

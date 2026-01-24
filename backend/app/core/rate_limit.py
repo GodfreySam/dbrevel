@@ -1,4 +1,5 @@
 """Rate limiting middleware for API endpoints"""
+
 import logging
 import os
 from typing import Optional
@@ -35,11 +36,11 @@ else:
                 key_func=get_remote_address,
                 default_limits=["1000/hour"],
             )
-            logger.info(
-                "Rate limiting using in-memory backend (Redis not configured)")
+            logger.info("Rate limiting using in-memory backend (Redis not configured)")
     except Exception as e:
         logger.warning(
-            f"Failed to initialize rate limiter: {e}. Rate limiting disabled.")
+            f"Failed to initialize rate limiter: {e}. Rate limiting disabled."
+        )
         limiter = None
 
 

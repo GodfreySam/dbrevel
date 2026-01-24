@@ -41,15 +41,24 @@ This endpoint returns the complete database schema including:
                                     {
                                         "name": "users",
                                         "columns": [
-                                            {"name": "id", "type": "integer",
-                                                "nullable": False},
-                                            {"name": "email", "type": "varchar",
-                                                "nullable": False},
-                                            {"name": "name", "type": "varchar",
-                                                "nullable": True}
-                                        ]
+                                            {
+                                                "name": "id",
+                                                "type": "integer",
+                                                "nullable": False,
+                                            },
+                                            {
+                                                "name": "email",
+                                                "type": "varchar",
+                                                "nullable": False,
+                                            },
+                                            {
+                                                "name": "name",
+                                                "type": "varchar",
+                                                "nullable": True,
+                                            },
+                                        ],
                                     }
-                                ]
+                                ],
                             },
                             "mongodb": {
                                 "name": "mongodb",
@@ -57,16 +66,22 @@ This endpoint returns the complete database schema including:
                                 "collections": [
                                     {
                                         "name": "reviews",
-                                        "fields": ["_id", "user_id", "product_id", "rating", "comment"]
+                                        "fields": [
+                                            "_id",
+                                            "user_id",
+                                            "product_id",
+                                            "rating",
+                                            "comment",
+                                        ],
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         }
                     }
                 }
-            }
+            },
         }
-    }
+    },
 )
 async def get_all_schemas(
     security_ctx: SecurityContext = Depends(get_security_context),
@@ -83,10 +98,7 @@ async def get_all_schemas(
     schemas = await adapter_factory.get_all_schemas(tenant)
 
     return {
-        "databases": {
-            name: schema.model_dump()
-            for name, schema in schemas.items()
-        }
+        "databases": {name: schema.model_dump() for name, schema in schemas.items()}
     }
 
 
@@ -108,20 +120,16 @@ Get schema for a specific database (PostgreSQL or MongoDB).
 - `/api/v1/schema/mongodb` - Get MongoDB schema
     """,
     responses={
-        200: {
-            "description": "Schema retrieved successfully"
-        },
+        200: {"description": "Schema retrieved successfully"},
         404: {
             "description": "Database not found",
             "content": {
                 "application/json": {
-                    "example": {
-                        "detail": "Database 'invalid_db' not found"
-                    }
+                    "example": {"detail": "Database 'invalid_db' not found"}
                 }
-            }
-        }
-    }
+            },
+        },
+    },
 )
 async def get_database_schema(
     database_name: str,
@@ -138,7 +146,4 @@ async def get_database_schema(
         schema = await adapter.introspect_schema()
         return schema.model_dump()
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

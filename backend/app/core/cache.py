@@ -1,4 +1,5 @@
 """Redis-based cache for schemas and query plans, replacing the simple in-memory cache."""
+
 import hashlib
 import logging
 import orjson
@@ -19,22 +20,44 @@ try:
 except redis.exceptions.ConnectionError:
     # If Redis is not available, use a mock client (Redis is optional)
     # Only log at debug level since Redis is optional for local dev
-    logger.debug("Redis not available - caching will be disabled (this is OK for local development)")
+    logger.debug(
+        "Redis not available - caching will be disabled (this is OK for local development)"
+    )
+
     # A simple mock client that does nothing, to avoid errors
     class MockRedis:
-        def get(self, name): return None
-        def set(self, name, value, ex=None): pass
-        def flushdb(self): pass
-        def ping(self): raise redis.exceptions.ConnectionError
+        def get(self, name):
+            return None
+
+        def set(self, name, value, ex=None):
+            pass
+
+        def flushdb(self):
+            pass
+
+        def ping(self):
+            raise redis.exceptions.ConnectionError
+
     redis_client = MockRedis()
 except Exception as e:
     # Unexpected errors - log at info level but don't fail
-    logger.info(f"Redis initialization issue: {type(e).__name__}. Caching will be disabled.")
+    logger.info(
+        f"Redis initialization issue: {type(e).__name__}. Caching will be disabled."
+    )
+
     class MockRedis:
-        def get(self, name): return None
-        def set(self, name, value, ex=None): pass
-        def flushdb(self): pass
-        def ping(self): raise redis.exceptions.ConnectionError
+        def get(self, name):
+            return None
+
+        def set(self, name, value, ex=None):
+            pass
+
+        def flushdb(self):
+            pass
+
+        def ping(self):
+            raise redis.exceptions.ConnectionError
+
     redis_client = MockRedis()
 
 
@@ -67,7 +90,7 @@ class RedisCache:
             # Default function to handle objects that orjson can't serialize
             # This is particularly useful for Pydantic models
             def default_serializer(obj):
-                if hasattr(obj, 'model_dump'):
+                if hasattr(obj, "model_dump"):
                     return obj.model_dump()
                 return str(obj)
 
@@ -88,20 +111,23 @@ class RedisCache:
         except redis.exceptions.RedisError as e:
             logger.debug(f"Redis cache clear error: {e}")
 
-
     def generate_key(self, *args, **kwargs) -> str:
         """Generate a consistent cache key from arguments."""
+
         # Use orjson for fast and consistent serialization
         # The default function ensures complex objects are handled
         def default_serializer(obj):
-            if hasattr(obj, 'model_dump'):
-                return obj.model_dump(mode='json')
+            if hasattr(obj, "model_dump"):
+                return obj.model_dump(mode="json")
             return str(obj)
 
         # Combine args and kwargs for a complete key
-        key_data = {'args': args, 'kwargs': kwargs}
-        key_str = orjson.dumps(key_data, default=default_serializer, option=orjson.OPT_SORT_KEYS)
+        key_data = {"args": args, "kwargs": kwargs}
+        key_str = orjson.dumps(
+            key_data, default=default_serializer, option=orjson.OPT_SORT_KEYS
+        )
         return hashlib.md5(key_str).hexdigest()
+
 
 # Global cache instances using the Redis-based cache
 # Using different prefixes for schema and query plans

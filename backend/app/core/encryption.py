@@ -18,8 +18,11 @@ class EncryptionService:
         """
         if key is None:
             # Try ENCRYPTION_KEY first, fall back to SECRET_KEY
-            encryption_key = getattr(settings, 'ENCRYPTION_KEY', None)
-            if encryption_key and encryption_key != "your-encryption-key-here-generate-a-32-byte-key":
+            encryption_key = getattr(settings, "ENCRYPTION_KEY", None)
+            if (
+                encryption_key
+                and encryption_key != "your-encryption-key-here-generate-a-32-byte-key"
+            ):
                 key = encryption_key
             else:
                 # Derive a 32-byte key from SECRET_KEY using SHA256
@@ -168,7 +171,9 @@ def decrypt_database_url(encrypted_url: str) -> str:
     encrypted_url = encrypted_url.strip()
 
     # Check if already decrypted (for backward compatibility with existing data)
-    if encrypted_url.startswith(("postgresql://", "postgres://", "mongodb://", "mongodb+srv://")):
+    if encrypted_url.startswith(
+        ("postgresql://", "postgres://", "mongodb://", "mongodb+srv://")
+    ):
         return encrypted_url
 
     return get_encryption_service().decrypt(encrypted_url)
@@ -188,7 +193,9 @@ def mask_database_url(url: str) -> str:
         return ""
 
     # If encrypted, we can't mask it directly, so return a generic message
-    if not url.startswith(("postgresql://", "postgres://", "mongodb://", "mongodb+srv://")):
+    if not url.startswith(
+        ("postgresql://", "postgres://", "mongodb://", "mongodb+srv://")
+    ):
         return "*** (encrypted)"
 
     return get_encryption_service().mask_url(url)

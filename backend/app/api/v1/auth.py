@@ -8,23 +8,39 @@ import app.core.password_reset as password_reset_module
 import app.core.user_store as user_store_module
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
-from app.core.auth import (create_access_token, get_current_user,
-                           hash_password, verify_password)
+from app.core.auth import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 from app.core.config import settings
 from app.core.email_service import get_email_service
 from app.core.rate_limit import rate_limit_auth, rate_limit_strict
-from app.models.user import (EmailVerificationRequest,
-                             EmailVerificationResponse, PasswordChange,
-                             PasswordReset, PasswordResetRequest,
-                             PasswordResetResponse, TokenResponse, User,
-                             UserCreate, UserLogin, UserResponse)
+from app.models.user import (
+    EmailVerificationRequest,
+    EmailVerificationResponse,
+    PasswordChange,
+    PasswordReset,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    TokenResponse,
+    User,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=EmailVerificationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=EmailVerificationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 @rate_limit_auth()
 async def register(request_body: UserCreate, request: Request):
     """
@@ -72,7 +88,8 @@ async def register(request_body: UserCreate, request: Request):
         # Verify account was created successfully
         if not account or not account.id:
             logging.error(
-                f"Registration: Failed to create account for user {request_body.email}")
+                f"Registration: Failed to create account for user {request_body.email}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create account",
@@ -80,9 +97,11 @@ async def register(request_body: UserCreate, request: Request):
 
         account_id_for_cleanup = account.id
         logging.info(
-            f"Registration: Created account_id={account.id} for user {request_body.email}")
+            f"Registration: Created account_id={account.id} for user {request_body.email}"
+        )
 
         import asyncio
+
         verify_account = None
         max_retries = 3
         retry_delay = 0.3  # seconds
@@ -91,7 +110,8 @@ async def register(request_body: UserCreate, request: Request):
             verify_account = await account_store.get_by_id_async(account.id)
             if verify_account:
                 logging.info(
-                    f"Registration: Verified account_id={account.id} exists in database (attempt {attempt + 1})")
+                    f"Registration: Verified account_id={account.id} exists in database (attempt {attempt + 1})"
+                )
                 break
 
             if attempt < max_retries - 1:
@@ -105,20 +125,20 @@ async def register(request_body: UserCreate, request: Request):
             # Log all available accounts for debugging
             try:
                 all_accounts = await account_store.list_accounts_async()
-                available_ids = [
-                    t.id for t in all_accounts] if all_accounts else []
+                available_ids = [t.id for t in all_accounts] if all_accounts else []
                 logging.error(
                     f"Registration: Account {account.id} was created but cannot be retrieved after {max_retries} attempts. "
                     f"Available account IDs in database: {available_ids}"
                 )
             except Exception as e:
                 logging.error(
-                    f"Registration: Could not list accounts for debugging: {e}")
+                    f"Registration: Could not list accounts for debugging: {e}"
+                )
 
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Account {account.id} was created but cannot be retrieved after multiple attempts. "
-                       f"This indicates a persistence issue. Please contact support.",
+                f"This indicates a persistence issue. Please contact support.",
             )
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -133,13 +153,16 @@ async def register(request_body: UserCreate, request: Request):
             try:
                 await account_store.delete_account_async(account_id_for_cleanup)
                 logging.info(
-                    f"Registration: Cleaned up account {account_id_for_cleanup}")
+                    f"Registration: Cleaned up account {account_id_for_cleanup}"
+                )
             except Exception as cleanup_error:
                 logging.error(
-                    f"Registration: Failed to clean up account {account_id_for_cleanup}: {cleanup_error}")
+                    f"Registration: Failed to clean up account {account_id_for_cleanup}: {cleanup_error}"
+                )
 
         logging.error(
-            f"Registration: Failed to create account for user {request_body.email}: {e}")
+            f"Registration: Failed to create account for user {request_body.email}: {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create account: {str(e)}",
@@ -153,11 +176,13 @@ async def register(request_body: UserCreate, request: Request):
             account_id=account.id,
         )
         logging.info(
-            f"Registration: Created user {user.email} with account_id={user.account_id}")
+            f"Registration: Created user {user.email} with account_id={user.account_id}"
+        )
     except Exception as e:
         # If user creation fails, clean up account
         logging.error(
-            f"Registration: User creation failed for {request_body.email}, cleaning up account {account.id}: {e}")
+            f"Registration: User creation failed for {request_body.email}, cleaning up account {account.id}: {e}"
+        )
         await account_store.delete_account_async(account.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -186,10 +211,12 @@ async def register(request_body: UserCreate, request: Request):
             )
             # Log the project creation for debugging
             logging.info(
-                f"Created default project for user {user.email}: {default_project.id}")
+                f"Created default project for user {user.email}: {default_project.id}"
+            )
         except Exception as e:
             logging.error(
-                f"Failed to create default project for user {user.email}: {e}")
+                f"Failed to create default project for user {user.email}: {e}"
+            )
             # Don't fail registration if project creation fails
             # User can create projects later via dashboard
 
@@ -239,7 +266,8 @@ async def login(request_body: UserLogin, request: Request):
         )
 
     logging.info(
-        f"Login: User {user.email} authenticated, user_id={user.id}, account_id={user.account_id}")
+        f"Login: User {user.email} authenticated, user_id={user.id}, account_id={user.account_id}"
+    )
 
     # Check if email is verified
     if not user.email_verified:
@@ -256,7 +284,8 @@ async def login(request_body: UserLogin, request: Request):
         )
 
     logging.info(
-        f"Login: Looking up account_id={user.account_id} for user {user.email}")
+        f"Login: Looking up account_id={user.account_id} for user {user.email}"
+    )
 
     if not user.account_id:
         logging.error(f"Login: User {user.email} has no account_id assigned!")
@@ -272,8 +301,7 @@ async def login(request_body: UserLogin, request: Request):
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [
-                t.id for t in all_accounts] if all_accounts else []
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"Login: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
                 f"Available account IDs in database: {available_ids}"
@@ -347,8 +375,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [
-                t.id for t in all_accounts] if all_accounts else []
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"get_current_user_info: Account not found for user {current_user.email} "
                 f"(user_id={current_user.id}, account_id={current_user.account_id}). "
@@ -356,7 +383,8 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
             )
         except Exception as e:
             logging.error(
-                f"get_current_user_info: Could not list accounts for debugging: {e}")
+                f"get_current_user_info: Could not list accounts for debugging: {e}"
+            )
 
         error_detail = (
             f"Account not found for user account. "
@@ -443,7 +471,9 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
 
     # OTP is already validated and stripped by Pydantic validator
     # Verify OTP
-    otp_doc = await email_verification_store.verify_otp(request_body.email, request_body.otp)
+    otp_doc = await email_verification_store.verify_otp(
+        request_body.email, request_body.otp
+    )
     if not otp_doc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -459,7 +489,8 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
 
     # Mark email as verified
     logging.info(
-        f"verify_email: Marking email as verified for user {user.email} (user_id={user.id})")
+        f"verify_email: Marking email as verified for user {user.email} (user_id={user.id})"
+    )
     verification_success = await user_store.mark_email_verified(user.id)
     if not verification_success:
         logging.error(
@@ -480,13 +511,15 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
     # Refresh user object to get updated email_verified status
     # Retry a few times to ensure database update is visible (MongoDB write concern)
     import asyncio
+
     user_id_for_refresh = user.id
     user_email_for_logging = user.email
     refreshed_user = None
     max_retries = 3
     for attempt in range(max_retries):
         logging.info(
-            f"verify_email: Refreshing user object for {user_email_for_logging} (user_id={user_id_for_refresh}) - attempt {attempt + 1}")
+            f"verify_email: Refreshing user object for {user_email_for_logging} (user_id={user_id_for_refresh}) - attempt {attempt + 1}"
+        )
         refreshed_user = await user_store.get_by_id(user_id_for_refresh)
         if refreshed_user and refreshed_user.email_verified:
             logging.info(
@@ -499,7 +532,8 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
 
     if not refreshed_user:
         logging.error(
-            f"verify_email: User {request_body.email} (id={user_id_for_refresh}) not found after verification!")
+            f"verify_email: User {request_body.email} (id={user_id_for_refresh}) not found after verification!"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found after verification",
@@ -538,8 +572,7 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
         available_ids = []
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [
-                t.id for t in all_accounts] if all_accounts else []
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
             logging.error(
                 f"verify_email: Account not found for user {user.email} (user_id={user.id}, account_id={user.account_id}). "
                 f"Available account IDs: {available_ids}"
@@ -561,7 +594,8 @@ async def verify_email(request_body: EmailVerificationRequest, request: Request)
         )
 
     logging.info(
-        f"verify_email: Account found for user {user.email}. Generating JWT token.")
+        f"verify_email: Account found for user {user.email}. Generating JWT token."
+    )
 
     # Generate JWT token with user role
     access_token = create_access_token(user.id, user.email, user.role)
@@ -609,10 +643,7 @@ async def resend_verification_email(request: Request, email: str = Query(...)):
 
     # Check if already verified
     if user.email_verified:
-        return {
-            "message": "Email already verified",
-            "verified": True
-        }
+        return {"message": "Email already verified", "verified": True}
 
     # Generate and send new OTP
     try:
@@ -621,9 +652,7 @@ async def resend_verification_email(request: Request, email: str = Query(...)):
         )
         email_service = get_email_service()
         await email_service.send_verification_email(user.email, otp)
-        return {
-            "message": "Verification email sent. Please check your inbox."
-        }
+        return {"message": "Verification email sent. Please check your inbox."}
     except Exception as e:
         logging.error(f"Failed to send verification email: {e}")
         raise HTTPException(
@@ -656,9 +685,7 @@ async def forgot_password(request_body: PasswordResetRequest, request: Request):
     if user:
         # Generate OTP
         otp_code = await password_reset_store.create_reset_otp(
-            user.id,
-            user.email,
-            expires_in_minutes=10
+            user.id, user.email, expires_in_minutes=10
         )
 
         # Send OTP email
@@ -688,7 +715,9 @@ async def reset_password(request_body: PasswordReset, request: Request):
         )
 
     # Verify OTP
-    otp_doc = await password_reset_store.verify_otp(request_body.email, request_body.otp)
+    otp_doc = await password_reset_store.verify_otp(
+        request_body.email, request_body.otp
+    )
     if not otp_doc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -715,8 +744,7 @@ async def reset_password(request_body: PasswordReset, request: Request):
     if not user_store.db:
         await user_store._ensure_connected()
     await user_store.db.users.update_one(
-        {"_id": ObjectId(user.id)},
-        {"$set": {"password_hash": new_password_hash}}
+        {"_id": ObjectId(user.id)}, {"$set": {"password_hash": new_password_hash}}
     )
 
     # Mark OTP as used
@@ -791,7 +819,7 @@ async def change_password(
         await user_store._ensure_connected()
     await user_store.db.users.update_one(
         {"_id": ObjectId(current_user.id)},
-        {"$set": {"password_hash": new_password_hash}}
+        {"$set": {"password_hash": new_password_hash}},
     )
 
     # Invalidate all reset OTPs for this user (security best practice)
@@ -860,8 +888,7 @@ async def debug_user_state(
         # Get all accounts for debugging
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_account_ids = [
-                t.id for t in all_accounts] if all_accounts else []
+            available_account_ids = [t.id for t in all_accounts] if all_accounts else []
         except Exception as e:
             logging.error(f"Could not list accounts: {e}")
 

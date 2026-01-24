@@ -16,7 +16,7 @@ DEMO_TOKENS = {
         account_id="account_admin",
         permissions=["read", "write", "delete"],
         row_filters={},
-        field_masks={}
+        field_masks={},
     ),
     "viewer_token": SecurityContext(
         user_id="user_viewer",
@@ -25,11 +25,9 @@ DEMO_TOKENS = {
         permissions=["read"],
         row_filters={
             "users": {"account_id": "account_demo"},
-            "orders": {"account_id": "account_demo"}
+            "orders": {"account_id": "account_demo"},
         },
-        field_masks={
-            "users": ["password", "api_key"]
-        }
+        field_masks={"users": ["password", "api_key"]},
     ),
     "analyst_token": SecurityContext(
         user_id="user_analyst",
@@ -37,9 +35,7 @@ DEMO_TOKENS = {
         account_id="account_demo",
         permissions=["read"],
         row_filters={},
-        field_masks={
-            "users": ["password", "email", "phone"]
-        }
+        field_masks={"users": ["password", "email", "phone"]},
     ),
     "demo_token": SecurityContext(
         user_id="user_demo_token",
@@ -47,13 +43,13 @@ DEMO_TOKENS = {
         account_id="account_demo",
         permissions=["read"],
         row_filters={},
-        field_masks={}
+        field_masks={},
     ),
 }
 
 
 async def get_security_context(
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
 ) -> SecurityContext:
     """
     Extract security context from request headers.
@@ -65,15 +61,14 @@ async def get_security_context(
     if not authorization:
         # Default viewer role for demo
         if not settings.DEBUG:
-            logger.debug(
-                "Using default demo context (no authorization header)")
+            logger.debug("Using default demo context (no authorization header)")
         return SecurityContext(
             user_id="user_demo",
             role="viewer",
             account_id="account_demo",
             permissions=["read"],
             row_filters={},
-            field_masks={}
+            field_masks={},
         )
 
     # Parse "Bearer <token>" format
@@ -90,17 +85,17 @@ async def get_security_context(
         # In production, you might want to validate JWT here
         if not settings.DEBUG:
             logger.warning(
-                f"Unknown token used (falling back to demo context): {token[:10]}...")
+                f"Unknown token used (falling back to demo context): {token[:10]}..."
+            )
         return SecurityContext(
             user_id="user_demo_token",
             role="demo",
             account_id="account_demo",
             permissions=["read"],
             row_filters={},
-            field_masks={}
+            field_masks={},
         )
 
     raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authorization header"
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authorization header"
     )

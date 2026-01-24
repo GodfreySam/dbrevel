@@ -1,4 +1,5 @@
 """Retry utilities with exponential backoff for external API calls"""
+
 import asyncio
 import logging
 from functools import wraps
@@ -7,7 +8,7 @@ import random
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 async def retry_with_exponential_backoff(
@@ -19,7 +20,7 @@ async def retry_with_exponential_backoff(
     exponential_base: float = 2.0,
     jitter: bool = True,
     exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    **kwargs
+    **kwargs,
 ) -> T:
     """Retry an async function with exponential backoff
 
@@ -55,7 +56,7 @@ async def retry_with_exponential_backoff(
                 raise
 
             # Calculate delay with exponential backoff
-            delay = min(initial_delay * (exponential_base ** attempt), max_delay)
+            delay = min(initial_delay * (exponential_base**attempt), max_delay)
 
             # Add jitter to prevent thundering herd
             if jitter:
@@ -99,6 +100,7 @@ def with_retry(
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
@@ -111,7 +113,9 @@ def with_retry(
                 exponential_base=exponential_base,
                 jitter=jitter,
                 exceptions=exceptions,
-                **kwargs
+                **kwargs,
             )
+
         return wrapper
+
     return decorator

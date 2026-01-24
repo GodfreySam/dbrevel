@@ -12,15 +12,14 @@ import os
 import sys
 
 # Ensure project root is on path
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), ".")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 
 
 # Initialize account store with configured MongoDB URL
 print("Initializing account store with MONGODB_URL:", settings.MONGODB_URL)
 # Use base Mongo URL (without database name) for store initializers like main.py
-if '/' in settings.MONGODB_URL:
-    mongo_base_url = '/'.join(settings.MONGODB_URL.rsplit('/', 1)[:-1])
+if "/" in settings.MONGODB_URL:
+    mongo_base_url = "/".join(settings.MONGODB_URL.rsplit("/", 1)[:-1])
 else:
     mongo_base_url = settings.MONGODB_URL
 
@@ -49,6 +48,7 @@ async def run():
         print("ensure_admin_user completed")
     except Exception as e:
         print("ensure_admin_user error:", e)
+
 
 if __name__ == "__main__":
     asyncio.run(run())

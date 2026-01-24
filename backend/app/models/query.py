@@ -1,4 +1,5 @@
 """Query models"""
+
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -7,18 +8,19 @@ from pydantic import BaseModel, Field, field_validator
 
 class QueryRequest(BaseModel):
     """Request model for natural language queries"""
+
     intent: str = Field(
         ...,
         description="Natural language query or structured intent",
         min_length=1,
-        max_length=5000
+        max_length=5000,
     )
     context: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional context")
-    dry_run: bool = Field(
-        default=False, description="Validate without executing")
+        default=None, description="Additional context"
+    )
+    dry_run: bool = Field(default=False, description="Validate without executing")
 
-    @field_validator('intent')
+    @field_validator("intent")
     @classmethod
     def validate_intent(cls, v: str) -> str:
         """
@@ -71,8 +73,8 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Get all users",
                         "context": None,
-                        "dry_run": False
-                    }
+                        "dry_run": False,
+                    },
                 },
                 {
                     "summary": "Get customers in Lagos with more than 5 orders",
@@ -80,8 +82,8 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Get customers in Lagos with more than 5 orders",
                         "context": None,
-                        "dry_run": False
-                    }
+                        "dry_run": False,
+                    },
                 },
                 {
                     "summary": "Show products with price over 100",
@@ -89,8 +91,8 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Show products with price over 100",
                         "context": None,
-                        "dry_run": False
-                    }
+                        "dry_run": False,
+                    },
                 },
                 {
                     "summary": "Count orders by status",
@@ -98,8 +100,8 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Count orders by status",
                         "context": None,
-                        "dry_run": False
-                    }
+                        "dry_run": False,
+                    },
                 },
                 {
                     "summary": "Get recent reviews",
@@ -107,8 +109,8 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Get recent reviews",
                         "context": None,
-                        "dry_run": False
-                    }
+                        "dry_run": False,
+                    },
                 },
                 {
                     "summary": "Dry run - validate query without executing",
@@ -116,9 +118,9 @@ class QueryRequest(BaseModel):
                     "value": {
                         "intent": "Get all users",
                         "context": None,
-                        "dry_run": True
-                    }
-                }
+                        "dry_run": True,
+                    },
+                },
             ]
         }
     }
@@ -126,6 +128,7 @@ class QueryRequest(BaseModel):
 
 class DatabaseQuery(BaseModel):
     """Generated database query"""
+
     database: str
     query_type: Literal["sql", "mongodb", "cross-db"]
     query: Union[str, List[Dict[str, Any]]]  # SQL string or MongoDB pipeline
@@ -136,6 +139,7 @@ class DatabaseQuery(BaseModel):
 
 class QueryPlan(BaseModel):
     """Complete query execution plan (minimal)"""
+
     databases: List[str]
     queries: List[DatabaseQuery]
     # Removed: join_strategy, reasoning, security_applied, estimated_cost for minimal response
@@ -148,6 +152,7 @@ class QueryPlan(BaseModel):
 
 class QueryMetadata(BaseModel):
     """Metadata about query execution (minimal)"""
+
     query_plan: QueryPlan
     execution_time_ms: float
     rows_returned: int
@@ -158,12 +163,14 @@ class QueryMetadata(BaseModel):
 
 class QueryResult(BaseModel):
     """Query execution result"""
+
     data: List[Dict[str, Any]]
     metadata: QueryMetadata
 
 
 class SecurityContext(BaseModel):
     """User security context"""
+
     user_id: str
     role: str
     account_id: Optional[str] = None

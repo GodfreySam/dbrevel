@@ -1,4 +1,5 @@
 """Centralized error handling utilities for safe error logging and reporting."""
+
 import logging
 import re
 from typing import Any, Dict, Optional
@@ -34,10 +35,13 @@ def sanitize_error_message(message: str) -> str:
     for pattern in SENSITIVE_PATTERNS:
         sanitized = re.sub(
             pattern,
-            lambda m: m.group(0).replace(
-                m.group(1), "***REDACTED***") if m.lastindex else m.group(0),
+            lambda m: (
+                m.group(0).replace(m.group(1), "***REDACTED***")
+                if m.lastindex
+                else m.group(0)
+            ),
             sanitized,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
 
     return sanitized
@@ -68,7 +72,10 @@ def truncate_error_message(error: Exception, max_length: int = 200) -> str:
             error_str = parts[0].strip()
 
     # Remove verbose DNS resolution details
-    if "DNS operation timed out" in error_str or "resolution lifetime expired" in error_str:
+    if (
+        "DNS operation timed out" in error_str
+        or "resolution lifetime expired" in error_str
+    ):
         if ":" in error_str:
             error_str = error_str.split(":")[0] + ": DNS resolution timeout"
 
@@ -109,18 +116,11 @@ def safe_log_error(
                 sanitized_extra[key] = value
 
     logger_instance.error(
-        sanitized_message,
-        exc_info=exc_info,
-        extra=sanitized_extra,
-        **kwargs
+        sanitized_message, exc_info=exc_info, extra=sanitized_extra, **kwargs
     )
 
 
-def safe_log_warning(
-    logger_instance: logging.Logger,
-    message: str,
-    **kwargs
-) -> None:
+def safe_log_warning(logger_instance: logging.Logger, message: str, **kwargs) -> None:
     """
     Safely log a warning message, ensuring no sensitive data is exposed.
 

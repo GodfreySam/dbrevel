@@ -5,18 +5,24 @@ from typing import List, Optional
 
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
-from app.core.accounts import (AccountConfig, get_account_config,
-                               get_account_config_required)
-from app.core.auth import (get_current_admin, get_current_user,
-                           get_current_user_optional)
+from app.core.accounts import (
+    AccountConfig,
+    get_account_config,
+    get_account_config_required,
+)
+from app.core.auth import get_current_admin, get_current_user, get_current_user_optional
 from app.core.db_test import test_mongodb_connection, test_postgres_connection
 from app.core.encryption import mask_database_url
-from app.models.account import (AccountApiKeyRotateResponse,
-                                AccountConnectionTestRequest,
-                                AccountConnectionTestResponse,
-                                AccountCreateRequest, AccountListResponse,
-                                AccountResponse, AccountUpdateRequest,
-                                DatabaseUpdateRequest)
+from app.models.account import (
+    AccountApiKeyRotateResponse,
+    AccountConnectionTestRequest,
+    AccountConnectionTestResponse,
+    AccountCreateRequest,
+    AccountListResponse,
+    AccountResponse,
+    AccountUpdateRequest,
+    DatabaseUpdateRequest,
+)
 from app.models.user import User
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -249,11 +255,13 @@ async def get_current_account_info_jwt(
     Returns full account details including API key.
     """
     import logging
+
     account_store = get_account_store()
 
     # Log for debugging
     logging.info(
-        f"Fetching account info for user {current_user.id} with account_id={current_user.account_id}")
+        f"Fetching account info for user {current_user.id} with account_id={current_user.account_id}"
+    )
 
     if not current_user.account_id:
         raise HTTPException(
@@ -268,8 +276,7 @@ async def get_current_account_info_jwt(
         # List all available accounts for debugging (in development only)
         try:
             all_accounts = await account_store.list_accounts_async()
-            available_ids = [
-                t.id for t in all_accounts] if all_accounts else []
+            available_ids = [t.id for t in all_accounts] if all_accounts else []
         except Exception as e:
             logging.warning(f"Could not list accounts for debugging: {e}")
             available_ids = []

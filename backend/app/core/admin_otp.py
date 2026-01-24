@@ -24,9 +24,7 @@ class AdminOTPStore:
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
             # Create index on expiration for cleanup
-            await self.db.admin_otps.create_index(
-                "expires_at", expireAfterSeconds=0
-            )
+            await self.db.admin_otps.create_index("expires_at", expireAfterSeconds=0)
             await self.db.admin_otps.create_index("email")
 
     def generate_otp(self) -> str:

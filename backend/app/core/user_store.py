@@ -19,11 +19,11 @@ def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
         parts = error_str.split("Topology Description")
         if parts:
             error_str = parts[0].strip()
-    
+
     # Truncate if still too long
     if len(error_str) > max_length:
         error_str = error_str[:max_length] + "..."
-    
+
     return error_str
 
 
@@ -39,11 +39,13 @@ class UserStore:
     async def _ensure_connected(self):
         """Ensure MongoDB connection is established."""
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         if self.client is None:
             logger.info("[UserStore] Creating new MongoDB client connection...")
             from motor.motor_asyncio import AsyncIOMotorClient
+
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
             logger.info("[UserStore] MongoDB client created, creating indexes...")
@@ -65,20 +67,23 @@ class UserStore:
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID (MongoDB _id)."""
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"[UserStore] get_by_id called with user_id={user_id}")
-        
+
         logger.info("[UserStore] Ensuring MongoDB connection...")
         await self._ensure_connected()
         logger.info("[UserStore] MongoDB connection ensured")
-        
+
         try:
             logger.info(f"[UserStore] Querying MongoDB for user _id={user_id}")
             doc = await self.db.users.find_one({"_id": ObjectId(user_id)})
             logger.info(f"[UserStore] MongoDB query completed: found={doc is not None}")
             if doc:
                 user = self._doc_to_user(doc)
-                logger.info(f"[UserStore] User converted: {user.email if user else 'None'}")
+                logger.info(
+                    f"[UserStore] User converted: {user.email if user else 'None'}"
+                )
                 return user
         except Exception as e:
             logger.error(f"[UserStore] Exception in get_by_id: {e}", exc_info=True)
@@ -95,9 +100,7 @@ class UserStore:
             return self._doc_to_user(doc)
         return None
 
-    async def create_user(
-        self, email: str, password: str, account_id: str
-    ) -> User:
+    async def create_user(self, email: str, password: str, account_id: str) -> User:
         """Create a new user."""
         await self._ensure_connected()
 
@@ -161,7 +164,8 @@ class UserStore:
         account_id = doc.get("account_id")
         if not account_id:
             raise ValueError(
-                f"User document missing required 'account_id' field: {doc.get('email')}")
+                f"User document missing required 'account_id' field: {doc.get('email')}"
+            )
 
         return User(
             id=user_id,
@@ -179,6 +183,7 @@ class UserStore:
     async def mark_email_verified(self, user_id: str) -> bool:
         """Mark a user's email as verified."""
         import logging
+
         await self._ensure_connected()
 
         # Log before update
@@ -190,8 +195,7 @@ class UserStore:
             )
 
         result = await self.db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"email_verified": True}}
+            {"_id": ObjectId(user_id)}, {"$set": {"email_verified": True}}
         )
 
         # Verify the update was successful
@@ -204,7 +208,8 @@ class UserStore:
                 )
             else:
                 logging.error(
-                    f"mark_email_verified: User {user_id} not found after update!")
+                    f"mark_email_verified: User {user_id} not found after update!"
+                )
             return True
         else:
             logging.warning(
@@ -236,8 +241,7 @@ class UserStore:
             return await self.get_by_id(user_id)
 
         result = await self.db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$set": update_fields}
+            {"_id": ObjectId(user_id)}, {"$set": update_fields}
         )
 
         if result.matched_count == 0:

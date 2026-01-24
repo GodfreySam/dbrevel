@@ -171,8 +171,7 @@ class DatabaseUpdateRequest(BaseModel):
     postgres_url: Optional[str] = Field(
         None, description="New PostgreSQL connection URL"
     )
-    mongodb_url: Optional[str] = Field(
-        None, description="New MongoDB connection URL")
+    mongodb_url: Optional[str] = Field(None, description="New MongoDB connection URL")
 
 
 class AccountApiKeyRevealResponse(BaseModel):

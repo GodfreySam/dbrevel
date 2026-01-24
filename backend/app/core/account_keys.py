@@ -69,6 +69,6 @@ def generate_readable_key(prefix: str = "dbrevel", length: int = 24) -> str:
     """
     # Use alphanumeric characters (excluding confusing chars like 0, O, I, l)
     alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    token = ''.join(secrets.choice(alphabet) for _ in range(length))
+    token = "".join(secrets.choice(alphabet) for _ in range(length))
 
     return f"{prefix}_{token}"

@@ -1,4 +1,5 @@
 """Application configuration"""
+
 from typing import List
 
 from pydantic_settings import BaseSettings
@@ -17,7 +18,9 @@ class Settings(BaseSettings):
     # For production: "https://app.dbrevel.com,https://admin.dbrevel.com"
     # Note: Vite dev server defaults to port 5173, but can be configured to 3000
     # Override in .env for production deployments
-    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"  # Override in .env
+    ALLOWED_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"  # Override in .env
+    )
 
     # Gemini API
     GEMINI_API_KEY: str
@@ -76,7 +79,7 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "case_sensitive": True,
-        "extra": "ignore"  # Ignore extra environment variables not defined in Settings
+        "extra": "ignore",  # Ignore extra environment variables not defined in Settings
     }
 
 

@@ -20,11 +20,11 @@ def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
         parts = error_str.split("Topology Description")
         if parts:
             error_str = parts[0].strip()
-    
+
     # Truncate if still too long
     if len(error_str) > max_length:
         error_str = error_str[:max_length] + "..."
-    
+
     return error_str
 
 
@@ -69,7 +69,9 @@ class ProjectStore:
         """Create a new project."""
         raise NotImplementedError
 
-    async def update_project_async(self, project_id: str, **updates) -> Optional[Project]:
+    async def update_project_async(
+        self, project_id: str, **updates
+    ) -> Optional[Project]:
         """Update project configuration."""
         raise NotImplementedError
 
@@ -77,7 +79,9 @@ class ProjectStore:
         """Soft delete a project (set is_active=False)."""
         raise NotImplementedError
 
-    async def rotate_api_key_async(self, project_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(
+        self, project_id: str, new_api_key: str
+    ) -> Optional[str]:
         """Rotate project API key. Returns old key hash for revocation tracking."""
         raise NotImplementedError
 
@@ -97,9 +101,11 @@ class MongoDBProjectStore(ProjectStore):
         """Ensure MongoDB connection is established."""
         if self.client is None:
             import logging
+
             logger = logging.getLogger(__name__)
-            
+
             from motor.motor_asyncio import AsyncIOMotorClient
+
             self.client = AsyncIOMotorClient(
                 self.mongo_url,
                 serverSelectionTimeoutMS=10000,
@@ -112,7 +118,7 @@ class MongoDBProjectStore(ProjectStore):
                 retryReads=True,
             )
             self.db = self.client[self.db_name]
-            
+
             # Create indexes with error handling - don't fail if MongoDB has partial connectivity
             # Indexes will be created eventually when primary is available
             try:
@@ -134,30 +140,36 @@ class MongoDBProjectStore(ProjectStore):
         await self._ensure_connected()
 
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"🔍 Looking up project by API key: {api_key[:20]}...")
 
         # Verify DB is connected
         if self.db is None:
-            logger.error(
-                "❌ MongoDB database is None after _ensure_connected()")
+            logger.error("❌ MongoDB database is None after _ensure_connected()")
             return None
 
         # Try direct lookup first (for backward compatibility)
-        project_doc = await self.db.projects.find_one({"api_key": api_key, "is_active": True})
+        project_doc = await self.db.projects.find_one(
+            {"api_key": api_key, "is_active": True}
+        )
         if project_doc:
             logger.info(
-                f"✓ Found project via direct lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
+                f"✓ Found project via direct lookup: {project_doc['name']} (ID: {project_doc['project_id']})"
+            )
             return self._doc_to_project(project_doc)
 
         logger.info("  Direct lookup failed, trying hash-based lookup...")
 
         # Hash-based lookup
         api_key_hash = hash_api_key(api_key)
-        project_doc = await self.db.projects.find_one({"api_key_hash": api_key_hash, "is_active": True})
+        project_doc = await self.db.projects.find_one(
+            {"api_key_hash": api_key_hash, "is_active": True}
+        )
         if project_doc:
             logger.info(
-                f"✓ Found project via hash lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
+                f"✓ Found project via hash lookup: {project_doc['name']} (ID: {project_doc['project_id']})"
+            )
             return self._doc_to_project(project_doc)
 
         logger.warning(f"⚠️  No project found for API key: {api_key[:20]}...")
@@ -212,23 +224,19 @@ class MongoDBProjectStore(ProjectStore):
             project_id = generate_project_id()
 
         # Encrypt database URLs
-        encrypted_pg_url = encrypt_database_url(
-            postgres_url) if postgres_url else ""
-        encrypted_mongo_url = encrypt_database_url(
-            mongodb_url) if mongodb_url else ""
+        encrypted_pg_url = encrypt_database_url(postgres_url) if postgres_url else ""
+        encrypted_mongo_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
 
         # Build databases array from legacy URLs (for future use)
         databases_array = []
         if encrypted_pg_url:
-            databases_array.append({
-                "type": "postgres",
-                "connection_url": encrypted_pg_url
-            })
+            databases_array.append(
+                {"type": "postgres", "connection_url": encrypted_pg_url}
+            )
         if encrypted_mongo_url:
-            databases_array.append({
-                "type": "mongodb",
-                "connection_url": encrypted_mongo_url
-            })
+            databases_array.append(
+                {"type": "mongodb", "connection_url": encrypted_mongo_url}
+            )
 
         now = datetime.utcnow()
         project_doc = {
@@ -252,15 +260,13 @@ class MongoDBProjectStore(ProjectStore):
         # Build databases list for Project model
         databases_list = []
         if encrypted_pg_url:
-            databases_list.append(DatabaseConfig(
-                type="postgres",
-                connection_url=encrypted_pg_url
-            ))
+            databases_list.append(
+                DatabaseConfig(type="postgres", connection_url=encrypted_pg_url)
+            )
         if encrypted_mongo_url:
-            databases_list.append(DatabaseConfig(
-                type="mongodb",
-                connection_url=encrypted_mongo_url
-            ))
+            databases_list.append(
+                DatabaseConfig(type="mongodb", connection_url=encrypted_mongo_url)
+            )
 
         return Project(
             id=project_id,
@@ -275,7 +281,9 @@ class MongoDBProjectStore(ProjectStore):
             is_active=True,
         )
 
-    async def update_project_async(self, project_id: str, **updates) -> Optional[Project]:
+    async def update_project_async(
+        self, project_id: str, **updates
+    ) -> Optional[Project]:
         """Update project configuration."""
         await self._ensure_connected()
 
@@ -286,14 +294,12 @@ class MongoDBProjectStore(ProjectStore):
         # Encrypt database URLs if they're being updated
         if "postgres_url" in updates:
             if updates["postgres_url"]:
-                updates["postgres_url"] = encrypt_database_url(
-                    updates["postgres_url"])
+                updates["postgres_url"] = encrypt_database_url(updates["postgres_url"])
             else:
                 updates["postgres_url"] = ""
         if "mongodb_url" in updates:
             if updates["mongodb_url"]:
-                updates["mongodb_url"] = encrypt_database_url(
-                    updates["mongodb_url"])
+                updates["mongodb_url"] = encrypt_database_url(updates["mongodb_url"])
             else:
                 updates["mongodb_url"] = ""
 
@@ -301,21 +307,21 @@ class MongoDBProjectStore(ProjectStore):
         if "postgres_url" in updates or "mongodb_url" in updates:
             # Get current values (use updated values if provided, otherwise existing)
             final_pg_url = updates.get(
-                "postgres_url", project_doc.get("postgres_url", ""))
+                "postgres_url", project_doc.get("postgres_url", "")
+            )
             final_mongo_url = updates.get(
-                "mongodb_url", project_doc.get("mongodb_url", ""))
+                "mongodb_url", project_doc.get("mongodb_url", "")
+            )
 
             databases_array = []
             if final_pg_url and final_pg_url.strip():
-                databases_array.append({
-                    "type": "postgres",
-                    "connection_url": final_pg_url
-                })
+                databases_array.append(
+                    {"type": "postgres", "connection_url": final_pg_url}
+                )
             if final_mongo_url and final_mongo_url.strip():
-                databases_array.append({
-                    "type": "mongodb",
-                    "connection_url": final_mongo_url
-                })
+                databases_array.append(
+                    {"type": "mongodb", "connection_url": final_mongo_url}
+                )
             updates["databases"] = databases_array
 
         # Update timestamp
@@ -338,12 +344,14 @@ class MongoDBProjectStore(ProjectStore):
         await self._ensure_connected()
 
         result = await self.db.projects.update_one(
-            {"project_id": project_id}, {
-                "$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+            {"project_id": project_id},
+            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
         )
         return result.modified_count > 0
 
-    async def rotate_api_key_async(self, project_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(
+        self, project_id: str, new_api_key: str
+    ) -> Optional[str]:
         """Rotate project API key. Returns old key hash for revocation tracking."""
         await self._ensure_connected()
 
@@ -377,10 +385,12 @@ class MongoDBProjectStore(ProjectStore):
         if "databases" in doc and doc["databases"]:
             # New format already exists
             for db in doc["databases"]:
-                databases.append(DatabaseConfig(
-                    type=db.get("type", ""),
-                    connection_url=db.get("connection_url", "")
-                ))
+                databases.append(
+                    DatabaseConfig(
+                        type=db.get("type", ""),
+                        connection_url=db.get("connection_url", ""),
+                    )
+                )
             return databases
 
         # Migrate from old format
@@ -388,16 +398,12 @@ class MongoDBProjectStore(ProjectStore):
         mongodb_url = doc.get("mongodb_url", "")
 
         if postgres_url and postgres_url.strip() and not postgres_url.startswith("***"):
-            databases.append(DatabaseConfig(
-                type="postgres",
-                connection_url=postgres_url
-            ))
+            databases.append(
+                DatabaseConfig(type="postgres", connection_url=postgres_url)
+            )
 
         if mongodb_url and mongodb_url.strip() and not mongodb_url.startswith("***"):
-            databases.append(DatabaseConfig(
-                type="mongodb",
-                connection_url=mongodb_url
-            ))
+            databases.append(DatabaseConfig(type="mongodb", connection_url=mongodb_url))
 
         return databases
 

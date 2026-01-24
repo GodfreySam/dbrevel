@@ -16,8 +16,11 @@ class EmailService:
     """Service for sending emails."""
 
     def __init__(self):
-        self.base_url = settings.ALLOWED_ORIGINS.split(
-            ",")[0] if settings.ALLOWED_ORIGINS else "http://localhost:5173"
+        self.base_url = (
+            settings.ALLOWED_ORIGINS.split(",")[0]
+            if settings.ALLOWED_ORIGINS
+            else "http://localhost:5173"
+        )
         self.templates_dir = Path(__file__).parent.parent / "templates"
         self.support_email = settings.SUPPORT_EMAIL
 
@@ -169,11 +172,11 @@ class EmailService:
 
         # If email is disabled, log and return
         if not settings.EMAIL_ENABLED:
-            logger.info(
-                f"Email disabled - would send OTP {otp_code} to {email}")
+            logger.info(f"Email disabled - would send OTP {otp_code} to {email}")
             # Still save preview for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_email_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_email_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Email preview saved to: {preview_path}")
@@ -186,8 +189,9 @@ class EmailService:
                 "Set ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD in .env"
             )
             # Save preview for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_email_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_email_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Email preview saved to: {preview_path}")
@@ -226,17 +230,19 @@ DBRevel - AI-Powered Database SDK
             # Use SMTP_SSL for port 465, regular SMTP for port 587
             if settings.ZOHO_SMTP_PORT == 465:
                 # Port 465 uses SSL directly
-                with smtplib.SMTP_SSL(settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT) as server:
-                    server.login(settings.ZOHO_SMTP_USER,
-                                 settings.ZOHO_SMTP_PASSWORD)
+                with smtplib.SMTP_SSL(
+                    settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT
+                ) as server:
+                    server.login(settings.ZOHO_SMTP_USER, settings.ZOHO_SMTP_PASSWORD)
                     server.send_message(msg)
             else:
                 # Port 587 uses STARTTLS
-                with smtplib.SMTP(settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT) as server:
+                with smtplib.SMTP(
+                    settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT
+                ) as server:
                     if settings.EMAIL_USE_TLS:
                         server.starttls()
-                    server.login(settings.ZOHO_SMTP_USER,
-                                 settings.ZOHO_SMTP_PASSWORD)
+                    server.login(settings.ZOHO_SMTP_USER, settings.ZOHO_SMTP_PASSWORD)
                     server.send_message(msg)
 
             logger.info(f"✅ OTP email sent successfully to {email}")
@@ -244,15 +250,13 @@ DBRevel - AI-Powered Database SDK
 
         except smtplib.SMTPAuthenticationError as e:
             logger.error(f"❌ Zoho SMTP authentication failed: {e}")
-            logger.error(
-                "Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
+            logger.error("Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
             return False
         except smtplib.SMTPException as e:
             logger.error(f"❌ Zoho SMTP error: {e}")
             return False
         except Exception as e:
-            logger.error(
-                f"❌ Unexpected error sending email: {e}", exc_info=True)
+            logger.error(f"❌ Unexpected error sending email: {e}", exc_info=True)
             return False
 
     async def send_verification_email(self, email: str, otp_code: str) -> bool:
@@ -271,10 +275,12 @@ DBRevel - AI-Powered Database SDK
         # If email is disabled, log and return
         if not settings.EMAIL_ENABLED:
             logger.info(
-                f"Email disabled - would send verification OTP {otp_code} to {email}")
+                f"Email disabled - would send verification OTP {otp_code} to {email}"
+            )
             # Still save preview for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_verification_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_verification_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Email preview saved to: {preview_path}")
@@ -287,8 +293,9 @@ DBRevel - AI-Powered Database SDK
                 "Set ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD in .env"
             )
             # Save preview for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_verification_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_verification_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Email preview saved to: {preview_path}")
@@ -303,14 +310,21 @@ DBRevel - AI-Powered Database SDK
             msg["To"] = email
             msg["Subject"] = "Verify Your Email Address - DBRevel"
             msg["Reply-To"] = settings.EMAIL_FROM_ADDRESS
-            msg["Message-ID"] = make_msgid(domain=settings.EMAIL_FROM_ADDRESS.split(
-                '@')[1] if '@' in settings.EMAIL_FROM_ADDRESS else 'dbrevel.com')
+            msg["Message-ID"] = make_msgid(
+                domain=(
+                    settings.EMAIL_FROM_ADDRESS.split("@")[1]
+                    if "@" in settings.EMAIL_FROM_ADDRESS
+                    else "dbrevel.com"
+                )
+            )
 
             # Add headers to improve deliverability and prevent spam
             msg["X-Mailer"] = "DBRevel Email Service"
             msg["X-Priority"] = "3"
             if self.support_email:
-                msg["List-Unsubscribe"] = f"<mailto:{self.support_email}?subject=Unsubscribe>"
+                msg["List-Unsubscribe"] = (
+                    f"<mailto:{self.support_email}?subject=Unsubscribe>"
+                )
             msg["Auto-Submitted"] = "auto-generated"
 
             # Create plain text alternative for better deliverability
@@ -336,11 +350,12 @@ This is an automated email. Please do not reply to this message.
             msg.attach(html_part)
 
             # Send email
-            with smtplib.SMTP(settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT) as server:
+            with smtplib.SMTP(
+                settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT
+            ) as server:
                 if settings.EMAIL_USE_TLS:
                     server.starttls()
-                server.login(settings.ZOHO_SMTP_USER,
-                             settings.ZOHO_SMTP_PASSWORD)
+                server.login(settings.ZOHO_SMTP_USER, settings.ZOHO_SMTP_PASSWORD)
                 server.send_message(msg)
 
             logger.info(f"✓ Verification email sent to {email}")
@@ -348,8 +363,7 @@ This is an automated email. Please do not reply to this message.
 
         except smtplib.SMTPAuthenticationError as e:
             logger.error(f"❌ Zoho SMTP authentication failed: {e}")
-            logger.error(
-                "Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
+            logger.error("Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
             return False
         except smtplib.SMTPException as e:
             logger.error(f"❌ Zoho SMTP error: {e}")
@@ -425,11 +439,11 @@ This is an automated email. Please do not reply to this message.
 
         # If email is disabled, log and return
         if not settings.EMAIL_ENABLED:
-            logger.info(
-                f"📧 Email disabled - Admin OTP for {email}: {otp_code}")
+            logger.info(f"📧 Email disabled - Admin OTP for {email}: {otp_code}")
             # Save preview for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_admin_otp_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_admin_otp_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Admin OTP email preview saved to: {preview_path}")
@@ -443,8 +457,9 @@ This is an automated email. Please do not reply to this message.
                 "Set ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD in .env"
             )
             # Save preview and log OTP for development
-            preview_path = Path(
-                "/tmp") / f"dbrevel_admin_otp_{email.replace('@', '_at_')}.html"
+            preview_path = (
+                Path("/tmp") / f"dbrevel_admin_otp_{email.replace('@', '_at_')}.html"
+            )
             with open(preview_path, "w") as f:
                 f.write(html_content)
             logger.info(f"Admin OTP email preview saved to: {preview_path}")
@@ -460,8 +475,13 @@ This is an automated email. Please do not reply to this message.
             msg["To"] = email
             msg["Subject"] = "DBRevel Admin Login - OTP Code"
             msg["Reply-To"] = settings.EMAIL_FROM_ADDRESS
-            msg["Message-ID"] = make_msgid(domain=settings.EMAIL_FROM_ADDRESS.split(
-                '@')[1] if '@' in settings.EMAIL_FROM_ADDRESS else 'dbrevel.com')
+            msg["Message-ID"] = make_msgid(
+                domain=(
+                    settings.EMAIL_FROM_ADDRESS.split("@")[1]
+                    if "@" in settings.EMAIL_FROM_ADDRESS
+                    else "dbrevel.com"
+                )
+            )
             msg["X-Mailer"] = "DBRevel Email Service"
             msg["X-Priority"] = "1"  # High priority for admin emails
             msg["Auto-Submitted"] = "auto-generated"
@@ -491,10 +511,11 @@ DBRevel Platform Admin
             msg.attach(html_part)
 
             # Connect to Zoho SMTP and send
-            with smtplib.SMTP(settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT) as server:
+            with smtplib.SMTP(
+                settings.ZOHO_SMTP_HOST, settings.ZOHO_SMTP_PORT
+            ) as server:
                 server.starttls()
-                server.login(settings.ZOHO_SMTP_USER,
-                             settings.ZOHO_SMTP_PASSWORD)
+                server.login(settings.ZOHO_SMTP_USER, settings.ZOHO_SMTP_PASSWORD)
                 server.send_message(msg)
 
             logger.info(f"✅ Admin OTP email sent successfully to {email}")
@@ -502,8 +523,7 @@ DBRevel Platform Admin
 
         except smtplib.SMTPAuthenticationError as e:
             logger.error(f"❌ Zoho SMTP authentication failed: {e}")
-            logger.error(
-                "Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
+            logger.error("Please check your ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD")
             logger.info(f"🔐 ADMIN OTP CODE (email failed): {otp_code}")
             return False
         except smtplib.SMTPException as e:

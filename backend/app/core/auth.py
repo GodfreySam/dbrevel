@@ -33,7 +33,7 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password string (bcrypt hash)
     """
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
 
     # If password is longer than 72 bytes, pre-hash with SHA256
     if len(password_bytes) > 72:
@@ -46,8 +46,8 @@ def hash_password(password: str) -> str:
 
     # Use bcrypt directly (avoid passlib compatibility issues)
     salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password_to_hash.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    hashed = bcrypt.hashpw(password_to_hash.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -67,7 +67,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         True if password matches, False otherwise
     """
     # Prepare password the same way as hash_password
-    password_bytes = plain_password.encode('utf-8')
+    password_bytes = plain_password.encode("utf-8")
 
     # If password is longer than 72 bytes, pre-hash with SHA256
     if len(password_bytes) > 72:
@@ -78,13 +78,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
     # Use bcrypt directly to verify (bcrypt hashes are compatible between direct bcrypt and passlib)
     try:
-        password_byte = password_to_verify.encode('utf-8')
-        hashed_password_byte = hashed_password.encode('utf-8')
+        password_byte = password_to_verify.encode("utf-8")
+        hashed_password_byte = hashed_password.encode("utf-8")
         return bcrypt.checkpw(password_byte, hashed_password_byte)
     except (ValueError, TypeError, AttributeError, UnicodeEncodeError):
         # If direct bcrypt fails, try passlib as fallback (for edge cases or legacy hashes)
         try:
             from passlib.context import CryptContext
+
             pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
             # Try with original password first (for legacy hashes without pre-hashing)
             if pwd_context.verify(plain_password, hashed_password):
@@ -109,9 +110,7 @@ def create_access_token(user_id: str, email: str, role: str = "user") -> str:
     Returns:
         Encoded JWT token string
     """
-    expire = datetime.utcnow() + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "sub": user_id,
         "email": email,
@@ -167,6 +166,7 @@ async def get_current_user_optional(
 
     # Get user from database
     import app.core.user_store as user_store_module
+
     user_store = user_store_module.user_store
     if user_store is None:
         return None
@@ -212,6 +212,7 @@ async def get_current_user(
 
     # Get user from database
     import app.core.user_store as user_store_module
+
     user_store = user_store_module.user_store
     if user_store is None:
         logger.error("User store is None - not initialized")

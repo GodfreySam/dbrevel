@@ -127,9 +127,7 @@ async def verify_admin_otp(request: AdminOTPVerifyRequest):
         account = await account_store.get_by_id_async(user.account_id)
 
     # Create JWT with admin role
-    access_token = create_access_token(
-        user_id=user.id, email=user.email, role="admin"
-    )
+    access_token = create_access_token(user_id=user.id, email=user.email, role="admin")
 
     # Return token with user info
     user_response = UserResponse(
@@ -181,8 +179,7 @@ async def list_all_accounts(
     # Filter by search if provided
     if search:
         search_lower = search.lower()
-        all_accounts = [
-            t for t in all_accounts if search_lower in t.name.lower()]
+        all_accounts = [t for t in all_accounts if search_lower in t.name.lower()]
 
     # Paginate
     start_idx = (page - 1) * limit
@@ -195,8 +192,7 @@ async def list_all_accounts(
             id=t.id,
             name=t.name,
             api_key=t.api_key,
-            postgres_url=mask_database_url(
-                decrypt_database_url(t.postgres_url)),
+            postgres_url=mask_database_url(decrypt_database_url(t.postgres_url)),
             mongodb_url=mask_database_url(decrypt_database_url(t.mongodb_url)),
             gemini_mode=t.gemini_mode,
         )
@@ -233,10 +229,8 @@ async def get_account_details(
         id=account.id,
         name=account.name,
         api_key=account.api_key,
-        postgres_url=mask_database_url(
-            decrypt_database_url(account.postgres_url)),
-        mongodb_url=mask_database_url(
-            decrypt_database_url(account.mongodb_url)),
+        postgres_url=mask_database_url(decrypt_database_url(account.postgres_url)),
+        mongodb_url=mask_database_url(decrypt_database_url(account.mongodb_url)),
         gemini_mode=account.gemini_mode,
     )
 
@@ -339,8 +333,12 @@ async def list_all_users(
 
     # Paginate and collect docs
     skip = (page - 1) * limit
-    cursor = user_store.db.users.find(query_filter).skip(
-        skip).limit(limit).sort("created_at", -1)
+    cursor = (
+        user_store.db.users.find(query_filter)
+        .skip(skip)
+        .limit(limit)
+        .sort("created_at", -1)
+    )
 
     docs = []
     async for doc in cursor:
@@ -351,8 +349,9 @@ async def list_all_users(
     if project_store:
         try:
             await project_store._ensure_connected()
-            account_ids = list({d.get("account_id")
-                               for d in docs if d.get("account_id")})
+            account_ids = list(
+                {d.get("account_id") for d in docs if d.get("account_id")}
+            )
             if account_ids:
                 pipeline = [
                     {"$match": {"account_id": {"$in": account_ids}}},
@@ -572,8 +571,7 @@ async def list_all_projects(
             name=p.name,
             account_id=p.account_id,
             api_key="***",  # Mask for security
-            postgres_url=mask_database_url(
-                decrypt_database_url(p.postgres_url)),
+            postgres_url=mask_database_url(decrypt_database_url(p.postgres_url)),
             mongodb_url=mask_database_url(decrypt_database_url(p.mongodb_url)),
             created_at=p.created_at,
             updated_at=p.updated_at,
@@ -755,29 +753,29 @@ async def get_platform_stats(
     await user_store._ensure_connected()
     user_filter = {"role": {"$ne": "admin"}}  # Exclude admin users
     total_users = await user_store.db.users.count_documents(user_filter)
-    verified_users = await user_store.db.users.count_documents({
-        **user_filter,
-        "email_verified": True
-    })
+    verified_users = await user_store.db.users.count_documents(
+        {**user_filter, "email_verified": True}
+    )
 
     # Count projects (exclude demo project to match real user projects only)
     await project_store._ensure_connected()
     from app.core.demo_account import DEMO_PROJECT_ID
+
     project_filter = {
         "is_active": True,
-        "project_id": {"$ne": DEMO_PROJECT_ID}  # Exclude demo project
+        "project_id": {"$ne": DEMO_PROJECT_ID},  # Exclude demo project
     }
     total_projects = await project_store.db.projects.count_documents(project_filter)
 
     # Count queries today (from usage_logs if it exists)
     from datetime import datetime, timedelta
-    today_start = datetime.utcnow().replace(
-        hour=0, minute=0, second=0, microsecond=0)
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     total_queries_today = 0
     try:
-        total_queries_today = await user_store.db.usage_logs.count_documents({
-            "timestamp": {"$gte": today_start}
-        })
+        total_queries_today = await user_store.db.usage_logs.count_documents(
+            {"timestamp": {"$gte": today_start}}
+        )
     except Exception:
         # usage_logs collection may not exist yet
         pass
@@ -787,8 +785,7 @@ async def get_platform_stats(
     active_account_ids = set()
     try:
         async for log in user_store.db.usage_logs.find(
-            {"timestamp": {"$gte": seven_days_ago}},
-            {"account_id": 1}
+            {"timestamp": {"$gte": seven_days_ago}}, {"account_id": 1}
         ):
             if "account_id" in log:
                 active_account_ids.add(log["account_id"])
@@ -796,11 +793,11 @@ async def get_platform_stats(
         pass
 
     return PlatformStats(
-        total_accounts=total_accounts, # Renamed to accounts
+        total_accounts=total_accounts,  # Renamed to accounts
         total_users=total_users,
         total_projects=total_projects,
         verified_users=verified_users,
-        active_accounts_last_7_days=len(active_account_ids), # Renamed to accounts
+        active_accounts_last_7_days=len(active_account_ids),  # Renamed to accounts
         total_queries_today=total_queries_today,
     )
 
@@ -858,7 +855,7 @@ async def get_usage_analytics(
         start_dt = now - timedelta(days=30)
     else:
         try:
-            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
         except ValueError:
             start_dt = now - timedelta(days=30)
 
@@ -866,14 +863,12 @@ async def get_usage_analytics(
         end_dt = now
     else:
         try:
-            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
         except ValueError:
             end_dt = now
 
     # Build query filter
-    query_filter = {
-        "timestamp": {"$gte": start_dt, "$lte": end_dt}
-    }
+    query_filter = {"timestamp": {"$gte": start_dt, "$lte": end_dt}}
     if account_id:
         query_filter["account_id"] = account_id
 
@@ -889,7 +884,9 @@ async def get_usage_analytics(
             total_queries += 1
             exec_time = log.get("execution_time_ms", 0.0)
             total_execution_time_ms += exec_time
-            total_tokens += log.get("tokens_used", 0) or log.get("gemini_tokens_used", 0)
+            total_tokens += log.get("tokens_used", 0) or log.get(
+                "gemini_tokens_used", 0
+            )
 
             # Count by query type
             query_type = log.get("query_type", "unknown")
@@ -916,17 +913,21 @@ async def get_usage_analytics(
     while current_date <= end_date_obj:
         date_str = current_date.strftime("%Y-%m-%d")
         if date_str in daily_data:
-            daily_usage.append(UsageDataPoint(
-                date=date_str,
-                queries=daily_data[date_str]["queries"],
-                execution_time_ms=daily_data[date_str]["execution_time_ms"],
-            ))
+            daily_usage.append(
+                UsageDataPoint(
+                    date=date_str,
+                    queries=daily_data[date_str]["queries"],
+                    execution_time_ms=daily_data[date_str]["execution_time_ms"],
+                )
+            )
         else:
-            daily_usage.append(UsageDataPoint(
-                date=date_str,
-                queries=0,
-                execution_time_ms=0.0,
-            ))
+            daily_usage.append(
+                UsageDataPoint(
+                    date=date_str,
+                    queries=0,
+                    execution_time_ms=0.0,
+                )
+            )
         current_date += timedelta(days=1)
 
     return UsageAnalytics(
@@ -969,8 +970,7 @@ async def get_database_health(
 
     from datetime import datetime
 
-    from app.core.db_test import (test_mongodb_connection,
-                                  test_postgres_connection)
+    from app.core.db_test import test_mongodb_connection, test_postgres_connection
     from app.core.encryption import decrypt_database_url
 
     health_statuses = []
@@ -999,10 +999,16 @@ async def get_database_health(
         if tenant_projects:
             # Test first project's databases (projects have their own DB URLs)
             project = tenant_projects[0]
-            pg_url = decrypt_database_url(
-                project.postgres_url) if project.postgres_url else None
-            mongo_url = decrypt_database_url(
-                project.mongodb_url) if project.mongodb_url else None
+            pg_url = (
+                decrypt_database_url(project.postgres_url)
+                if project.postgres_url
+                else None
+            )
+            mongo_url = (
+                decrypt_database_url(project.mongodb_url)
+                if project.mongodb_url
+                else None
+            )
 
             # Test PostgreSQL
             if pg_url:
@@ -1027,12 +1033,14 @@ async def get_database_health(
             postgres_status = "no_projects"
             mongodb_status = "no_projects"
 
-        health_statuses.append(HealthStatus(
-            account_id=account.id,
-            account_name=account.name,
-            postgres_status=postgres_status,
-            mongodb_status=mongodb_status,
-            last_checked=datetime.utcnow(),
-        ))
+        health_statuses.append(
+            HealthStatus(
+                account_id=account.id,
+                account_name=account.name,
+                postgres_status=postgres_status,
+                mongodb_status=mongodb_status,
+                last_checked=datetime.utcnow(),
+            )
+        )
 
     return health_statuses

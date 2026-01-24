@@ -2,6 +2,7 @@
 Basic tests for DbRevel API
 Run with: pytest
 """
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from app.main import app
@@ -52,7 +53,9 @@ async def test_query_endpoint_responds():
 async def test_schema_endpoint_responds():
     """Test schema endpoint responds (may fail auth/store init, but shouldn't crash)"""
     transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as client:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=True
+    ) as client:
         response = await client.get(
             "/api/v1/schema",
             headers={

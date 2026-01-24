@@ -29,7 +29,9 @@ class ConnectionTestResult:
         }
 
 
-async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> ConnectionTestResult:
+async def test_postgres_connection_lightweight(
+    url: str, timeout: int = 30
+) -> ConnectionTestResult:
     """
     Test PostgreSQL connection with lightweight connectivity check.
 
@@ -45,6 +47,7 @@ async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> C
         ConnectionTestResult with success status and minimal schema preview
     """
     import logging
+
     logger = logging.getLogger(__name__)
     adapter = None
     connect_timeout = min(timeout, 10)  # Cap at 10s for faster failure
@@ -65,8 +68,7 @@ async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> C
         try:
             await asyncio.wait_for(adapter.connect(), timeout=connect_timeout)
         except asyncio.TimeoutError:
-            logger.warning(
-                f"PostgreSQL connection timed out after {connect_timeout}s")
+            logger.warning(f"PostgreSQL connection timed out after {connect_timeout}s")
             raise
         except Exception as e:
             logger.warning(f"PostgreSQL connection failed: {str(e)}")
@@ -109,8 +111,7 @@ async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> C
             except Exception:
                 pass
         error_msg = str(e)
-        logger.error("PostgreSQL connection error: %s",
-                     error_msg, exc_info=True)
+        logger.error("PostgreSQL connection error: %s", error_msg, exc_info=True)
         # Don't expose full connection details in error
         # Handle PostgreSQL connection pooler errors
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():
@@ -120,7 +121,9 @@ async def test_postgres_connection_lightweight(url: str, timeout: int = 30) -> C
         elif "refused" in error_msg.lower() or "connection" in error_msg.lower():
             error_msg = "Connection refused - check host and port"
         elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-            error_msg = "Connection timeout - database may be unreachable or pooler is busy"
+            error_msg = (
+                "Connection timeout - database may be unreachable or pooler is busy"
+            )
         elif "pool" in error_msg.lower() or "pooler" in error_msg.lower():
             error_msg = "Connection pool error - try again in a moment"
 
@@ -144,7 +147,9 @@ async def test_postgres_connection(url: str, timeout: int = 30) -> ConnectionTes
     return await test_postgres_connection_lightweight(url, timeout)
 
 
-async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> ConnectionTestResult:
+async def test_mongodb_connection_lightweight(
+    url: str, timeout: int = 10
+) -> ConnectionTestResult:
     """
     Test MongoDB connection with lightweight connectivity check.
 
@@ -167,6 +172,7 @@ async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> Co
             db_name = "test"
 
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info("Testing MongoDB connection (lightweight)")
 
@@ -203,8 +209,10 @@ async def test_mongodb_connection_lightweight(url: str, timeout: int = 10) -> Co
                 pass
         error_msg = str(e)
         import logging
+
         logging.error(
-            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
+            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True
+        )
         # Sanitize error messages
         if "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"
@@ -235,6 +243,7 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             db_name = "test"
 
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"Attempting MongoDB connection test with URL: {url}")
 
@@ -249,8 +258,9 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
 
         # Create schema preview
         # Ensure collections is a list before slicing
-        collections_list_items = list(
-            schema.collections.items()) if schema.collections else []
+        collections_list_items = (
+            list(schema.collections.items()) if schema.collections else []
+        )
         schema_preview = {
             "database_name": schema.name,
             "collection_count": len(collections_list_items),
@@ -285,8 +295,10 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
                 pass
         error_msg = str(e)
         import logging
+
         logging.error(
-            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
+            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True
+        )
         # Sanitize error messages
         if "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"

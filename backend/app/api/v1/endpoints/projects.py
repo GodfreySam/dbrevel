@@ -5,15 +5,22 @@ from typing import List
 
 from app.core.account_keys import generate_account_key
 from app.core.auth import get_current_user
-from app.core.encryption import (decrypt_database_url, encrypt_database_url,
-                                 mask_database_url)
+from app.core.encryption import (
+    decrypt_database_url,
+    encrypt_database_url,
+    mask_database_url,
+)
 from app.core.project_store import generate_project_id, get_project_store
-from app.models.project import (ProjectApiKeyRevealResponse,
-                                ProjectApiKeyRotateResponse,
-                                ProjectConnectionTestRequest,
-                                ProjectConnectionTestResponse,
-                                ProjectCreateRequest, ProjectListResponse,
-                                ProjectResponse, ProjectUpdateRequest)
+from app.models.project import (
+    ProjectApiKeyRevealResponse,
+    ProjectApiKeyRotateResponse,
+    ProjectConnectionTestRequest,
+    ProjectConnectionTestResponse,
+    ProjectCreateRequest,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdateRequest,
+)
 from app.models.user import User
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -65,10 +72,8 @@ async def create_project(
                 mongodb_url = db_url
 
     # Encrypt database URLs at the API layer
-    encrypted_postgres_url = encrypt_database_url(
-        postgres_url) if postgres_url else ""
-    encrypted_mongodb_url = encrypt_database_url(
-        mongodb_url) if mongodb_url else ""
+    encrypted_postgres_url = encrypt_database_url(postgres_url) if postgres_url else ""
+    encrypted_mongodb_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
 
     # Create project (store still uses old format, but we'll add databases field in future)
     project = await project_store.create_project_async(
@@ -86,16 +91,17 @@ async def create_project(
         for db_config in project.databases:
             try:
                 decrypted_url = decrypt_database_url(db_config.connection_url)
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": mask_database_url(decrypted_url)
-                })
+                masked_databases.append(
+                    {
+                        "type": db_config.type,
+                        "connection_url": mask_database_url(decrypted_url),
+                    }
+                )
             except Exception:
                 # If decryption fails, still include the type with masked URL
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": "***"
-                })
+                masked_databases.append(
+                    {"type": db_config.type, "connection_url": "***"}
+                )
 
     # Return response with unmasked API key (only on creation)
     return ProjectResponse(
@@ -103,10 +109,16 @@ async def create_project(
         name=project.name,
         account_id=project.account_id,
         api_key=project.api_key,  # Show full API key on creation
-        postgres_url=mask_database_url(
-            decrypt_database_url(project.postgres_url)) if project.postgres_url else "",
-        mongodb_url=mask_database_url(
-            decrypt_database_url(project.mongodb_url)) if project.mongodb_url else "",
+        postgres_url=(
+            mask_database_url(decrypt_database_url(project.postgres_url))
+            if project.postgres_url
+            else ""
+        ),
+        mongodb_url=(
+            mask_database_url(decrypt_database_url(project.mongodb_url))
+            if project.mongodb_url
+            else ""
+        ),
         databases=masked_databases,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -181,26 +193,33 @@ async def get_project(
         for db_config in project.databases:
             try:
                 decrypted_url = decrypt_database_url(db_config.connection_url)
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": mask_database_url(decrypted_url)
-                })
+                masked_databases.append(
+                    {
+                        "type": db_config.type,
+                        "connection_url": mask_database_url(decrypted_url),
+                    }
+                )
             except Exception:
                 # If decryption fails, still include the type with masked URL
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": "***"
-                })
+                masked_databases.append(
+                    {"type": db_config.type, "connection_url": "***"}
+                )
 
     return ProjectResponse(
         id=project.id,
         name=project.name,
         account_id=project.account_id,
         api_key="***",  # Mask API key on retrieval for security
-        postgres_url=mask_database_url(
-            decrypt_database_url(project.postgres_url)) if project.postgres_url else "",
-        mongodb_url=mask_database_url(
-            decrypt_database_url(project.mongodb_url)) if project.mongodb_url else "",
+        postgres_url=(
+            mask_database_url(decrypt_database_url(project.postgres_url))
+            if project.postgres_url
+            else ""
+        ),
+        mongodb_url=(
+            mask_database_url(decrypt_database_url(project.mongodb_url))
+            if project.mongodb_url
+            else ""
+        ),
         databases=masked_databases,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -266,11 +285,13 @@ async def update_project(
 
     # Update with extracted/legacy URLs
     if postgres_url is not None:
-        updates["postgres_url"] = encrypt_database_url(
-            postgres_url) if postgres_url else ""
+        updates["postgres_url"] = (
+            encrypt_database_url(postgres_url) if postgres_url else ""
+        )
     if mongodb_url is not None:
-        updates["mongodb_url"] = encrypt_database_url(
-            mongodb_url) if mongodb_url else ""
+        updates["mongodb_url"] = (
+            encrypt_database_url(mongodb_url) if mongodb_url else ""
+        )
 
     updated_project = await project_store.update_project_async(project_id, **updates)
 
@@ -286,28 +307,33 @@ async def update_project(
         for db_config in updated_project.databases:
             try:
                 decrypted_url = decrypt_database_url(db_config.connection_url)
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": mask_database_url(decrypted_url)
-                })
+                masked_databases.append(
+                    {
+                        "type": db_config.type,
+                        "connection_url": mask_database_url(decrypted_url),
+                    }
+                )
             except Exception:
                 # If decryption fails, still include the type with masked URL
-                masked_databases.append({
-                    "type": db_config.type,
-                    "connection_url": "***"
-                })
+                masked_databases.append(
+                    {"type": db_config.type, "connection_url": "***"}
+                )
 
     return ProjectResponse(
         id=updated_project.id,
         name=updated_project.name,
         account_id=updated_project.account_id,
         api_key="***",  # Mask API key
-        postgres_url=mask_database_url(
-            decrypt_database_url(updated_project.postgres_url)
-        ) if updated_project.postgres_url else "",
-        mongodb_url=mask_database_url(
-            decrypt_database_url(updated_project.mongodb_url)
-        ) if updated_project.mongodb_url else "",
+        postgres_url=(
+            mask_database_url(decrypt_database_url(updated_project.postgres_url))
+            if updated_project.postgres_url
+            else ""
+        ),
+        mongodb_url=(
+            mask_database_url(decrypt_database_url(updated_project.mongodb_url))
+            if updated_project.mongodb_url
+            else ""
+        ),
         databases=masked_databases,
         created_at=updated_project.created_at,
         updated_at=updated_project.updated_at,
@@ -461,9 +487,12 @@ async def test_database_connections(
     Otherwise, uses the provided postgres_url and/or mongodb_url directly.
     """
     import logging
+
     logger = logging.getLogger(__name__)
-    from app.core.db_test import (test_mongodb_connection_lightweight,
-                                  test_postgres_connection_lightweight)
+    from app.core.db_test import (
+        test_mongodb_connection_lightweight,
+        test_postgres_connection_lightweight,
+    )
 
     project_store = get_project_store()
     postgres_url = request.postgres_url
@@ -500,35 +529,50 @@ async def test_database_connections(
                     except Exception as e:
                         logger.warning(
                             "Failed to decrypt %s URL from databases array for project %s: %s",
-                            db_type, project.id, e,
+                            db_type,
+                            project.id,
+                            e,
                         )
-        if not postgres_url and project.postgres_url and project.postgres_url.strip() and not project.postgres_url.startswith("***"):
+        if (
+            not postgres_url
+            and project.postgres_url
+            and project.postgres_url.strip()
+            and not project.postgres_url.startswith("***")
+        ):
             try:
                 postgres_url = decrypt_database_url(project.postgres_url)
             except Exception as e:
                 logger.warning(
-                    "Failed to decrypt postgres_url for project %s: %s", project.id, e)
+                    "Failed to decrypt postgres_url for project %s: %s", project.id, e
+                )
                 postgres_url = None
-        if not mongodb_url and project.mongodb_url and project.mongodb_url.strip() and not project.mongodb_url.startswith("***"):
+        if (
+            not mongodb_url
+            and project.mongodb_url
+            and project.mongodb_url.strip()
+            and not project.mongodb_url.startswith("***")
+        ):
             try:
                 mongodb_url = decrypt_database_url(project.mongodb_url)
             except Exception as e:
                 logger.warning(
-                    "Failed to decrypt mongodb_url for project %s: %s", project.id, e)
+                    "Failed to decrypt mongodb_url for project %s: %s", project.id, e
+                )
                 mongodb_url = None
 
     results = ProjectConnectionTestResponse()
 
     if postgres_url:
-        safe_url = postgres_url.split(
-            "@")[-1] if "@" in postgres_url else postgres_url
-        logger.info("Testing PostgreSQL connection for project %s: ...@%s",
-                    request.project_id, safe_url)
+        safe_url = postgres_url.split("@")[-1] if "@" in postgres_url else postgres_url
+        logger.info(
+            "Testing PostgreSQL connection for project %s: ...@%s",
+            request.project_id,
+            safe_url,
+        )
         try:
             pg_result = await test_postgres_connection_lightweight(postgres_url)
             results.postgres = pg_result.to_dict()
-            logger.info("PostgreSQL test completed: success=%s",
-                        pg_result.success)
+            logger.info("PostgreSQL test completed: success=%s", pg_result.success)
         except Exception as e:
             logger.error("PostgreSQL test failed: %s", e, exc_info=True)
             results.postgres = {"success": False, "error": str(e)}
@@ -539,8 +583,7 @@ async def test_database_connections(
             # Use lightweight test for consistency with PostgreSQL (fast feedback)
             mongo_result = await test_mongodb_connection_lightweight(mongodb_url)
             results.mongodb = mongo_result.to_dict()
-            logger.info("MongoDB test completed: success=%s",
-                        mongo_result.success)
+            logger.info("MongoDB test completed: success=%s", mongo_result.success)
         except Exception as e:
             logger.error("MongoDB test failed: %s", e, exc_info=True)
             results.mongodb = {"success": False, "error": str(e)}
@@ -552,6 +595,9 @@ async def test_database_connections(
             detail="No database URLs available to test. Either provide project_id or postgres_url/mongodb_url",
         )
 
-    logger.info("Test connection completed: postgres=%s mongodb=%s",
-                bool(results.postgres), bool(results.mongodb))
+    logger.info(
+        "Test connection completed: postgres=%s mongodb=%s",
+        bool(results.postgres),
+        bool(results.mongodb),
+    )
     return results

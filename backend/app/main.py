@@ -7,6 +7,7 @@ Note: This application requires Python 3.10+ due to google.genai package require
 Python 3.10 will stop being supported by Google libraries in October 2026.
 Consider upgrading to Python 3.11+ for long-term support.
 """
+
 import asyncio
 import logging
 import warnings
@@ -44,20 +45,22 @@ from slowapi.middleware import SlowAPIMiddleware
 def safe_rate_limit_handler(request: Request, exc: Exception):
     """Safe rate limit handler that handles both RateLimitExceeded and other exceptions."""
     from fastapi.responses import JSONResponse
+
     if isinstance(exc, RateLimitExceeded):
         # Use the standard handler for RateLimitExceeded
         return _rate_limit_exceeded_handler(request, exc)
     else:
         # For other exceptions (like ConnectionError), return a generic error
         return JSONResponse(
-            status_code=429,
-            content={"error": f"Rate limit exceeded: {str(exc)}"}
+            status_code=429, content={"error": f"Rate limit exceeded: {str(exc)}"}
         )
+
 
 # Suppress Python version warnings from Google libraries
 # These are informational warnings about future deprecation (2026)
-warnings.filterwarnings("ignore", category=FutureWarning,
-                        module="google.api_core._python_version_support")
+warnings.filterwarnings(
+    "ignore", category=FutureWarning, module="google.api_core._python_version_support"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -146,12 +149,12 @@ _original_stderr = None
 def _install_stderr_filter():
     """Install stderr filter to suppress MongoDB background errors."""
     import sys
+
     global _original_stderr
     if not isinstance(sys.stderr, _StderrFilter):
         _original_stderr = sys.stderr
         sys.stderr = _StderrFilter(_original_stderr)
-        logger.debug(
-            "Installed stderr filter for MongoDB background error suppression")
+        logger.debug("Installed stderr filter for MongoDB background error suppression")
 
 
 def _suppress_mongodb_background_errors():
@@ -184,10 +187,10 @@ def _suppress_mongodb_background_errors():
 
         # Check for MongoDB background reconnection patterns (plan: gaierror, better traceback matching)
         # Exception types: AutoReconnect, ServerSelectionTimeoutError, gaierror (DNS errors)
-        is_mongodb_exception_type = (
-            error_type_name in ("AutoReconnect", "ServerSelectionTimeoutError")
-            or (error_type_name == "gaierror" and exc_module == "socket")
-        )
+        is_mongodb_exception_type = error_type_name in (
+            "AutoReconnect",
+            "ServerSelectionTimeoutError",
+        ) or (error_type_name == "gaierror" and exc_module == "socket")
 
         # Traceback patterns: _process_periodic_tasks, update_pool, remove_stale_sockets,
         # pymongo/synchronous/, pymongo.synchronous.pool, pymongo.synchronous.mongo_client
@@ -220,12 +223,14 @@ def _suppress_mongodb_background_errors():
     sys.excepthook = custom_excepthook
 
     # Install custom exception handler for background threads (Python 3.8+)
-    if hasattr(threading, 'excepthook'):
+    if hasattr(threading, "excepthook"):
         original_thread_excepthook = threading.excepthook
 
         def custom_thread_excepthook(args):
             """Custom thread exception handler."""
-            if not is_mongodb_background_error(args.exc_type, args.exc_value, args.exc_traceback):
+            if not is_mongodb_background_error(
+                args.exc_type, args.exc_value, args.exc_traceback
+            ):
                 # Use default handler for non-MongoDB errors
                 original_thread_excepthook(args)
             # Otherwise, silently suppress MongoDB background errors
@@ -242,7 +247,10 @@ def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
         if parts:
             error_str = parts[0].strip()
     # Remove verbose DNS resolution details
-    if "DNS operation timed out" in error_str or "resolution lifetime expired" in error_str:
+    if (
+        "DNS operation timed out" in error_str
+        or "resolution lifetime expired" in error_str
+    ):
         # Extract just the main error before DNS details
         if ":" in error_str:
             error_str = error_str.split(":")[0] + ": DNS resolution timeout"
@@ -273,7 +281,7 @@ def init_sentry() -> None:
                 FastApiIntegration(transaction_style="endpoint"),
                 LoggingIntegration(
                     level=logging.INFO,  # Capture info and above as breadcrumbs
-                    event_level=logging.ERROR  # Send errors and above as events
+                    event_level=logging.ERROR,  # Send errors and above as events
                 ),
             ],
             # Release tracking (optional - can be set from CI/CD)
@@ -315,13 +323,17 @@ def validate_environment() -> None:
         )
 
     # Validate database URL formats
-    if settings.POSTGRES_URL and not settings.POSTGRES_URL.startswith(("postgresql://", "postgres://")):
+    if settings.POSTGRES_URL and not settings.POSTGRES_URL.startswith(
+        ("postgresql://", "postgres://")
+    ):
         raise RuntimeError(
             f"Invalid POSTGRES_URL format. Must start with 'postgresql://' or 'postgres://'. "
             f"Got: {settings.POSTGRES_URL[:50]}..."
         )
 
-    if settings.MONGODB_URL and not settings.MONGODB_URL.startswith(("mongodb://", "mongodb+srv://")):
+    if settings.MONGODB_URL and not settings.MONGODB_URL.startswith(
+        ("mongodb://", "mongodb+srv://")
+    ):
         raise RuntimeError(
             f"Invalid MONGODB_URL format. Must start with 'mongodb://' or 'mongodb+srv://'. "
             f"Got: {settings.MONGODB_URL[:50]}..."
@@ -336,32 +348,34 @@ def validate_environment() -> None:
             insecure_settings.append("SECRET_KEY contains default value")
 
         # Check ENCRYPTION_KEY
-        if hasattr(settings, 'ENCRYPTION_KEY'):
+        if hasattr(settings, "ENCRYPTION_KEY"):
             encryption_key = settings.ENCRYPTION_KEY
             if "your-encryption-key" in encryption_key.lower():
-                insecure_settings.append(
-                    "ENCRYPTION_KEY contains default value")
+                insecure_settings.append("ENCRYPTION_KEY contains default value")
 
             # Validate encryption key strength
             if len(encryption_key) < 32:
                 insecure_settings.append(
-                    f"ENCRYPTION_KEY is too short ({len(encryption_key)} chars, minimum 32)")
+                    f"ENCRYPTION_KEY is too short ({len(encryption_key)} chars, minimum 32)"
+                )
 
             # Check for basic entropy (at least some variety in characters)
             if len(set(encryption_key)) < 10:
                 insecure_settings.append(
-                    "ENCRYPTION_KEY has low entropy (too few unique characters)")
+                    "ENCRYPTION_KEY has low entropy (too few unique characters)"
+                )
 
         # Check if SECRET_KEY is too short
         if len(settings.SECRET_KEY) < 32:
             insecure_settings.append(
-                f"SECRET_KEY is too short ({len(settings.SECRET_KEY)} chars, minimum 32)")
+                f"SECRET_KEY is too short ({len(settings.SECRET_KEY)} chars, minimum 32)"
+            )
 
         if insecure_settings:
             raise RuntimeError(
-                "Insecure configuration detected in production mode:\n" +
-                "\n".join(f"  - {issue}" for issue in insecure_settings) +
-                "\nPlease update your .env file with secure values."
+                "Insecure configuration detected in production mode:\n"
+                + "\n".join(f"  - {issue}" for issue in insecure_settings)
+                + "\nPlease update your .env file with secure values."
             )
 
     logger.info("✓ Environment validation passed")
@@ -371,19 +385,16 @@ def validate_environment() -> None:
 async def lifespan(app: FastAPI):
     """Lifespan context manager"""
     import os
-    
+
     # Check if we're in test mode
     is_testing = os.getenv("TESTING", "false").lower() == "true"
-    
+
     # Suppress MongoDB background reconnection errors at multiple levels
     # 1. Suppress log messages from pymongo background tasks (set to CRITICAL to be more aggressive)
     logging.getLogger("pymongo.synchronous.pool").setLevel(logging.CRITICAL)
-    logging.getLogger("pymongo.synchronous.mongo_client").setLevel(
-        logging.CRITICAL)
-    logging.getLogger("pymongo.synchronous.topology").setLevel(
-        logging.CRITICAL)
-    logging.getLogger("pymongo.synchronous.server_selection").setLevel(
-        logging.CRITICAL)
+    logging.getLogger("pymongo.synchronous.mongo_client").setLevel(logging.CRITICAL)
+    logging.getLogger("pymongo.synchronous.topology").setLevel(logging.CRITICAL)
+    logging.getLogger("pymongo.synchronous.server_selection").setLevel(logging.CRITICAL)
     # Suppress motor (async pymongo) background noise too
     logging.getLogger("motor").setLevel(logging.WARNING)
 
@@ -404,9 +415,9 @@ async def lifespan(app: FastAPI):
     # Extract base MongoDB URL (without database name) for account store
     # MONGODB_URL format: mongodb://host:port/database_name
     # We need: mongodb://host:port (base URL) for account store
-    if '/' in settings.MONGODB_URL:
+    if "/" in settings.MONGODB_URL:
         # Split on last '/' to get base URL
-        mongo_base_url = '/'.join(settings.MONGODB_URL.rsplit('/', 1)[:-1])
+        mongo_base_url = "/".join(settings.MONGODB_URL.rsplit("/", 1)[:-1])
     else:
         mongo_base_url = settings.MONGODB_URL
     init_account_store(mongo_base_url, "dbrevel_platform")
@@ -444,11 +455,13 @@ async def lifespan(app: FastAPI):
         # Use asyncio.wait_for to prevent hanging on slow connections
         await asyncio.wait_for(
             adapter_factory.get_adapters_for_account(demo_config),
-            timeout=15.0  # 15 second timeout for pre-warming
+            timeout=15.0,  # 15 second timeout for pre-warming
         )
         print("✓ Demo account database adapters pre-warmed")
     except asyncio.TimeoutError:
-        print("⚠️  Warning: Demo account adapter pre-warming timed out (connections will be established on-demand)")
+        print(
+            "⚠️  Warning: Demo account adapter pre-warming timed out (connections will be established on-demand)"
+        )
     except Exception as e:
         print(f"⚠️  Warning: Could not pre-warm demo account adapters: {e}")
         print("   Connections will be established on-demand when needed")
@@ -460,27 +473,33 @@ async def lifespan(app: FastAPI):
 
         project_store = get_project_store()
         if project_store:
-            demo_project = await project_store.get_by_api_key_async(DEMO_PROJECT_API_KEY)
+            demo_project = await project_store.get_by_api_key_async(
+                DEMO_PROJECT_API_KEY
+            )
             if demo_project:
                 print(
-                    f"✓ Demo project verified: {demo_project.name} is accessible via API key")
+                    f"✓ Demo project verified: {demo_project.name} is accessible via API key"
+                )
             else:
                 print(
-                    "⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!")
+                    "⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!"
+                )
                 print("   Demo queries will fail with 'Invalid API key' errors")
                 print("   Checking MongoDB connection and indexes...")
                 by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
                 if by_id:
                     print(f"   ✓ Project found by ID: {by_id.name}")
                     print(
-                        "   ✗ But lookup by API key fails - check indexes or query logic")
+                        "   ✗ But lookup by API key fails - check indexes or query logic"
+                    )
                 else:
                     print("   ✗ Project not found by ID either - was not created!")
     except Exception as e:
         error_msg = _truncate_error_message(e)
         logger.warning(
             "Could not verify demo project (MongoDB may be unreachable): %s. "
-            "Demo queries will fail until MongoDB is available.", error_msg
+            "Demo queries will fail until MongoDB is available.",
+            error_msg,
         )
 
     # Ensure default admin user exists (non-blocking - don't fail startup)
@@ -490,7 +509,8 @@ async def lifespan(app: FastAPI):
         error_msg = _truncate_error_message(e)
         logger.warning(
             "Could not ensure admin user (MongoDB may be unreachable): %s. "
-            "Admin login will fail until MongoDB is available.", error_msg
+            "Admin login will fail until MongoDB is available.",
+            error_msg,
         )
 
     yield
@@ -507,15 +527,14 @@ async def lifespan(app: FastAPI):
         await asyncio.wait_for(adapter_factory.shutdown(), timeout=2.0)
         logger.info("✓ Adapter factory shutdown complete")
     except asyncio.TimeoutError:
-        logger.warning(
-            "⚠️  Adapter factory shutdown timed out (continuing anyway)")
+        logger.warning("⚠️  Adapter factory shutdown timed out (continuing anyway)")
     except Exception as e:
-        logger.error(
-            f"Error during adapter factory shutdown: {e}", exc_info=True)
+        logger.error(f"Error during adapter factory shutdown: {e}", exc_info=True)
 
     # Close MongoDB clients from stores (they have background tasks)
     # Use a single timeout for all store closures
     try:
+
         async def close_all_stores():
             from app.core.account_store import get_account_store
             from app.core.project_store import get_project_store
@@ -524,15 +543,23 @@ async def lifespan(app: FastAPI):
             # Close all stores in parallel
             tasks = []
 
-            if user_store and hasattr(user_store, 'client') and user_store.client:
+            if user_store and hasattr(user_store, "client") and user_store.client:
                 tasks.append(("user_store", user_store.client))
 
             project_store = get_project_store()
-            if project_store and hasattr(project_store, 'client') and project_store.client:
+            if (
+                project_store
+                and hasattr(project_store, "client")
+                and project_store.client
+            ):
                 tasks.append(("project_store", project_store.client))
 
             account_store = get_account_store()
-            if account_store and hasattr(account_store, 'client') and account_store.client:
+            if (
+                account_store
+                and hasattr(account_store, "client")
+                and account_store.client
+            ):
                 tasks.append(("account_store", account_store.client))
 
             # Close all clients
@@ -554,9 +581,11 @@ async def lifespan(app: FastAPI):
     shutdown_elapsed = asyncio.get_event_loop().time() - shutdown_start
     if shutdown_elapsed > max_shutdown_time:
         logger.warning(
-            f"⚠️  Shutdown took {shutdown_elapsed:.2f}s (exceeded {max_shutdown_time}s limit)")
+            f"⚠️  Shutdown took {shutdown_elapsed:.2f}s (exceeded {max_shutdown_time}s limit)"
+        )
 
     logger.info("✓ Shutdown complete")
+
 
 app = FastAPI(
     title="DbRevel API",
@@ -683,6 +712,7 @@ logger.info("Prometheus metrics middleware enabled")
 async def log_requests(request, call_next):
     """Log request method, path, and response status/duration."""
     import time
+
     start_time = time.time()
     try:
         response = await call_next(request)
@@ -706,6 +736,7 @@ async def log_requests(request, call_next):
             exc_info=True,
         )
         raise
+
 
 # CORS Configuration
 # Configured to allow requests from frontend and SDK clients
@@ -775,8 +806,8 @@ async def deep_health_check():
                 "message": "Demo database adapters not found in factory.",
                 "databases": {
                     "postgres": "not_initialized",
-                    "mongodb": "not_initialized"
-                }
+                    "mongodb": "not_initialized",
+                },
             }
 
         pg_healthy = await pg_adapter.health_check() if pg_adapter else False
@@ -786,15 +817,15 @@ async def deep_health_check():
             "status": "healthy" if pg_healthy and mongo_healthy else "unhealthy",
             "databases": {
                 "postgres": "healthy" if pg_healthy else "unhealthy",
-                "mongodb": "healthy" if mongo_healthy else "unhealthy"
-            }
+                "mongodb": "healthy" if mongo_healthy else "unhealthy",
+            },
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}", exc_info=True)
         return {
             "status": "unhealthy",
             "message": "An error occurred during health check.",
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -845,17 +876,22 @@ def custom_openapi():
                             schema = json_content.get("schema", {})
                             # Move examples from schema to content level if they exist
                             if "examples" in schema:
-                                json_content["examples"] = schema.pop(
-                                    "examples")
+                                json_content["examples"] = schema.pop("examples")
                             elif "$ref" in schema:
                                 # Check if examples are in the referenced schema component
                                 ref_path = schema["$ref"].replace(
-                                    "#/components/schemas/", "")
-                                if ref_path in openapi_schema.get("components", {}).get("schemas", {}):
-                                    ref_schema = openapi_schema["components"]["schemas"][ref_path]
+                                    "#/components/schemas/", ""
+                                )
+                                if ref_path in openapi_schema.get("components", {}).get(
+                                    "schemas", {}
+                                ):
+                                    ref_schema = openapi_schema["components"][
+                                        "schemas"
+                                    ][ref_path]
                                     if "examples" in ref_schema:
                                         json_content["examples"] = ref_schema.pop(
-                                            "examples")
+                                            "examples"
+                                        )
                 filtered_paths[path] = methods
             # Keep schema endpoints
             elif path.startswith("/api/v1/schema"):
@@ -879,7 +915,7 @@ def custom_openapi():
         "name": "X-Project-Key",
         "in": "header",
         "description": f"Project API key for authentication. Use `{DEMO_PROJECT_API_KEY}` for demo/testing with pre-seeded sample data. Get your own API key from the dashboard after creating a project.",
-        "x-default": DEMO_PROJECT_API_KEY  # Pre-fill with demo key in Swagger UI
+        "x-default": DEMO_PROJECT_API_KEY,  # Pre-fill with demo key in Swagger UI
     }
 
     app.openapi_schema = openapi_schema
@@ -894,6 +930,5 @@ app.include_router(query_router, prefix="/api/v1", tags=["query"])
 app.include_router(schema_router, prefix="/api/v1", tags=["schema"])
 app.include_router(accounts_router, prefix="/api/v1", tags=["accounts"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(
-    projects_router, prefix="/api/v1/projects", tags=["projects"])
+app.include_router(projects_router, prefix="/api/v1/projects", tags=["projects"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])

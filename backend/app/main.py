@@ -34,7 +34,6 @@ from app.core.rate_limit import limiter
 from app.core.user_store import init_user_store
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from slowapi import _rate_limit_exceeded_handler
@@ -346,7 +345,7 @@ def validate_environment() -> None:
 
         if insecure_settings:
             raise RuntimeError(
-                f"Insecure configuration detected in production mode:\n" +
+                "Insecure configuration detected in production mode:\n" +
                 "\n".join(f"  - {issue}" for issue in insecure_settings) +
                 "\nPlease update your .env file with secure values."
             )
@@ -453,16 +452,16 @@ async def lifespan(app: FastAPI):
                     f"✓ Demo project verified: {demo_project.name} is accessible via API key")
             else:
                 print(
-                    f"⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!")
-                print(f"   Demo queries will fail with 'Invalid API key' errors")
-                print(f"   Checking MongoDB connection and indexes...")
+                    "⚠️  WARNING: Demo project exists but NOT accessible via API key lookup!")
+                print("   Demo queries will fail with 'Invalid API key' errors")
+                print("   Checking MongoDB connection and indexes...")
                 by_id = await project_store.get_by_id_async(DEMO_PROJECT_ID)
                 if by_id:
                     print(f"   ✓ Project found by ID: {by_id.name}")
                     print(
-                        f"   ✗ But lookup by API key fails - check indexes or query logic")
+                        "   ✗ But lookup by API key fails - check indexes or query logic")
                 else:
-                    print(f"   ✗ Project not found by ID either - was not created!")
+                    print("   ✗ Project not found by ID either - was not created!")
     except Exception as e:
         error_msg = _truncate_error_message(e)
         logger.warning(

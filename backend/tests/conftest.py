@@ -14,6 +14,7 @@ import os
 # This ensures Settings() can be instantiated during test collection
 # Pytest loads conftest.py before test files, so these will be set
 # before app.main imports app.core.config which instantiates Settings()
+os.environ.setdefault("TESTING", "true")  # Enable test mode to skip DB initialization
 os.environ.setdefault("GEMINI_API_KEY", "test-gemini-api-key-for-ci-testing-only")
 os.environ.setdefault("POSTGRES_URL", "postgresql://test:test@localhost:5432/testdb")
 os.environ.setdefault("MONGODB_URL", "mongodb://test:test@localhost:27017/testdb")

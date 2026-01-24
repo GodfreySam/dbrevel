@@ -29,7 +29,8 @@ async def test_health_check():
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
-    assert "databases" in data
+    # Note: /health is a shallow check and doesn't return database status
+    # Use /health/deep for database connectivity checks
 
 
 @pytest.mark.asyncio

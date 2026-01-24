@@ -43,6 +43,7 @@ jobs:
         run: |
           pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
         env:
+          TESTING: "true"
           GEMINI_API_KEY: test-gemini-api-key-for-ci-testing-only
           POSTGRES_URL: postgresql://test:test@localhost:5432/testdb
           MONGODB_URL: mongodb://test:test@localhost:27017/testdb

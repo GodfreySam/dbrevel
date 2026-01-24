@@ -357,6 +357,11 @@ def validate_environment() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager"""
+    import os
+    
+    # Check if we're in test mode
+    is_testing = os.getenv("TESTING", "false").lower() == "true"
+    
     # Suppress MongoDB background reconnection errors at multiple levels
     # 1. Suppress log messages from pymongo background tasks (set to CRITICAL to be more aggressive)
     logging.getLogger("pymongo.synchronous.pool").setLevel(logging.CRITICAL)
@@ -375,6 +380,12 @@ async def lifespan(app: FastAPI):
 
     # Validate environment before starting
     validate_environment()
+
+    # Skip database initialization in test mode
+    if is_testing:
+        logger.info("⚠️  Running in TESTING mode - skipping database initialization")
+        yield
+        return
 
     # Initialize account store with MongoDB for persistence
     # Extract base MongoDB URL (without database name) for account store

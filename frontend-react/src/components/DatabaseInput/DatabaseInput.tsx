@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import "./DatabaseInput.css";
 
 export type DatabaseType = "postgres" | "mongodb" | "mysql" | "redis" | "other";
@@ -92,7 +92,7 @@ export default function DatabaseInput({
 				</div>
 			)}
 
-			{databases.map((db, index) => (
+			{databases.map((db) => (
 				<div key={db.id} className="database-input-item">
 					<div className="database-input-row">
 						<div className="database-type-select">

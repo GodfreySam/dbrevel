@@ -42,6 +42,14 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
+        env:
+          GEMINI_API_KEY: test-gemini-api-key-for-ci-testing-only
+          POSTGRES_URL: postgresql://test:test@localhost:5432/testdb
+          MONGODB_URL: mongodb://test:test@localhost:27017/testdb
+          ENCRYPTION_KEY: test-encryption-key-32-chars-long-abc123!!
+          SECRET_KEY: test-secret-key-for-testing-only-32-chars!!
+          DEBUG: "true"
+          DEMO_ACCOUNT_ENABLED: "false"
 
   lint:
     name: Lint

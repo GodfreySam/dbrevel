@@ -9,7 +9,7 @@ import hashlib
 class EncryptionService:
     """Service for encrypting and decrypting sensitive data."""
 
-    def __init__(self, key: str = None):
+    def __init__(self, key: str | None = None):
         """
         Initialize encryption service.
 
@@ -125,7 +125,7 @@ class EncryptionService:
 
 
 # Global encryption service instance
-_encryption_service: EncryptionService = None
+_encryption_service: EncryptionService | None = None
 
 
 def get_encryption_service() -> EncryptionService:

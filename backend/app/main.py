@@ -922,7 +922,8 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app.openapi = custom_openapi
+# Override openapi method
+setattr(app, "openapi", custom_openapi)
 
 # Import router after app creation to avoid circular import
 

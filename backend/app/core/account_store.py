@@ -467,6 +467,7 @@ class MongoDBAccountStore(AccountStore):
     async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Async version of get_by_api_key."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Try direct lookup first (for backward compatibility)
         account_doc = await self.db.accounts.find_one({"api_key": api_key})
@@ -484,6 +485,7 @@ class MongoDBAccountStore(AccountStore):
     async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         """Async version of get_by_id."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Log for debugging
         logging.debug(f"MongoDBAccountStore: Querying for account_id={account_id}")
@@ -547,6 +549,7 @@ class MongoDBAccountStore(AccountStore):
     async def list_accounts_async(self) -> List[AccountConfig]:
         """Async version of list_accounts."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         cursor = self.db.accounts.find({})
         accounts = []
         async for doc in cursor:
@@ -565,6 +568,7 @@ class MongoDBAccountStore(AccountStore):
     ) -> AccountConfig:
         """Async version of create_account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Use provided account_id, or generate one
         if account_id:
@@ -692,6 +696,7 @@ class MongoDBAccountStore(AccountStore):
     ) -> Optional[AccountConfig]:
         """Async version of update_account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         update_doc = {"updated_at": datetime.utcnow()}
 
@@ -732,6 +737,7 @@ class MongoDBAccountStore(AccountStore):
     async def delete_account_async(self, account_id: str) -> bool:
         """Async version of delete_account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         result = await self.db.accounts.delete_one({"account_id": account_id})
         return result.deleted_count > 0
 
@@ -740,6 +746,7 @@ class MongoDBAccountStore(AccountStore):
     ) -> Optional[str]:
         """Async version of rotate_api_key."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Get current account to retrieve old key hash
         account_doc = await self.db.accounts.find_one({"account_id": account_id})

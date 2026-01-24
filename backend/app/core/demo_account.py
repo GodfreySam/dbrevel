@@ -158,7 +158,8 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
 
     # Test MongoDB
     try:
-        client = MongoClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        from pymongo import MongoClient
+        client: MongoClient = MongoClient(mongodb_url, serverSelectionTimeoutMS=5000)
         client.admin.command("ping")
         client.close()
         mongodb_ok = True
@@ -194,7 +195,8 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         )
 
         # Use motor (async) - MongoDB client will use the database from URL if specified
-        client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        from motor.motor_asyncio import AsyncIOMotorClient
+        client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
         db = client[db_name]
 
         try:

@@ -111,7 +111,7 @@ async def execute_query(
     request: Request,
     request_body: QueryRequest = Body(
         ...,
-        examples={
+        examples={  # type: ignore[arg-type]
             "simple_query": {
                 "summary": "Get all users",
                 "description": "Simple query to fetch all users from the database",

@@ -12,7 +12,7 @@ The factory is responsible for:
 
 import asyncio
 import logging
-from typing import Dict
+from typing import Any, Dict, List, Optional
 
 from app.adapters.base import DatabaseAdapter
 from app.adapters.mongodb import MongoDBAdapter
@@ -225,7 +225,7 @@ class AdapterFactory:
             )
         return adapters[name]
 
-    async def get_all_schemas(self, account: AccountConfig) -> Dict[str, any]:
+    async def get_all_schemas(self, account: AccountConfig) -> Dict[str, Any]:
         """
         Retrieves the database schemas for all available adapters for an account.
 

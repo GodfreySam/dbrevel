@@ -73,6 +73,7 @@ class UserStore:
 
         logger.info("[UserStore] Ensuring MongoDB connection...")
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         logger.info("[UserStore] MongoDB connection ensured")
 
         try:
@@ -95,6 +96,7 @@ class UserStore:
     async def get_by_email(self, email: str) -> Optional[User]:
         """Get user by email."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         doc = await self.db.users.find_one({"email": email})
         if doc:
             return self._doc_to_user(doc)
@@ -103,6 +105,7 @@ class UserStore:
     async def create_user(self, email: str, password: str, account_id: str) -> User:
         """Create a new user."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Check if user already exists
         existing = await self.get_by_email(email)
@@ -146,6 +149,7 @@ class UserStore:
         if not verify_password(password, user.password_hash):
             return None
 
+        assert self.db is not None  # Type assertion for mypy
         # Update last login
         await self.db.users.update_one(
             {"_id": ObjectId(user.id)},
@@ -185,6 +189,7 @@ class UserStore:
         import logging
 
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Log before update
         user_before = await self.get_by_id(user_id)
@@ -226,6 +231,7 @@ class UserStore:
     ) -> Optional[User]:
         """Update user fields (role, email_verified)."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Build update dict with only provided fields
         update_fields = {}
@@ -252,6 +258,7 @@ class UserStore:
     async def delete_user(self, user_id: str) -> bool:
         """Delete a user by ID."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.users.delete_one({"_id": ObjectId(user_id)})
         return result.deleted_count > 0

@@ -48,6 +48,7 @@ class PasswordResetStore:
             OTP code string (6 digits)
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Invalidate any existing OTPs for this user
         await self.db.password_reset_otps.update_many(
@@ -86,6 +87,7 @@ class PasswordResetStore:
             OTP document if valid, None otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         otp_doc = await self.db.password_reset_otps.find_one(
             {
@@ -126,6 +128,7 @@ class PasswordResetStore:
             True if OTP was found and marked, False otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.password_reset_otps.update_one(
             {"email": email, "otp": otp},
@@ -145,6 +148,7 @@ class PasswordResetStore:
             Number of OTPs invalidated
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.password_reset_otps.update_many(
             {"user_id": user_id, "used": False},

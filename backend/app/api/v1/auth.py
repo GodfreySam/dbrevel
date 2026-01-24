@@ -743,6 +743,7 @@ async def reset_password(request_body: PasswordReset, request: Request):
     new_password_hash = hash_password(request_body.new_password)
     if not user_store.db:
         await user_store._ensure_connected()
+    assert user_store.db is not None  # Type assertion for mypy
     await user_store.db.users.update_one(
         {"_id": ObjectId(user.id)}, {"$set": {"password_hash": new_password_hash}}
     )
@@ -817,6 +818,7 @@ async def change_password(
     new_password_hash = hash_password(request_body.new_password)
     if user_store.db is None:
         await user_store._ensure_connected()
+    assert user_store.db is not None  # Type assertion for mypy
     await user_store.db.users.update_one(
         {"_id": ObjectId(current_user.id)},
         {"$set": {"password_hash": new_password_hash}},

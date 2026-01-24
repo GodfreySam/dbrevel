@@ -160,7 +160,7 @@ async def get_current_user_optional(
     if payload is None:
         return None
 
-    user_id: str = payload.get("sub")
+    user_id: str | None = payload.get("sub")
     if user_id is None:
         return None
 
@@ -201,7 +201,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id: str = payload.get("sub")
+    user_id: str | None = payload.get("sub")
     if user_id is None:
         logger.warning("Token payload missing 'sub' field")
         raise HTTPException(

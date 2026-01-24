@@ -62,6 +62,12 @@ class PostgresAdapter(DatabaseAdapter):
             logger.debug(
                 f"PostgreSQL connection pool created (min={settings.POSTGRES_POOL_MIN_SIZE}, max={settings.POSTGRES_POOL_MAX_SIZE})"
             )
+        except (asyncio.TimeoutError, TimeoutError) as e:
+            # Timeout errors are common during startup/pre-warming - log as warning
+            logger.warning(
+                "PostgreSQL connection pool creation timed out (will retry on-demand): %s", e
+            )
+            raise
         except Exception as e:
             logger.error(
                 "Failed to create PostgreSQL connection pool: %s", e, exc_info=True
@@ -146,6 +152,7 @@ class PostgresAdapter(DatabaseAdapter):
 
         try:
             # Try to acquire and use connection - if it fails, reconnect pool and retry
+            assert self.pool is not None  # Type assertion for mypy
             async with self.pool.acquire() as conn:
                 try:
                     # Try the actual query - if connection is dead, it will fail naturally
@@ -224,7 +231,7 @@ class PostgresAdapter(DatabaseAdapter):
             raise
 
     async def execute(
-        self, query: str, params: List[Any] = None, max_rows: int = 10000
+        self, query: str, params: List[Any] | None = None, max_rows: int = 10000
     ) -> List[Dict[str, Any]]:
         """
         Executes a SQL query and returns the results.
@@ -250,6 +257,7 @@ class PostgresAdapter(DatabaseAdapter):
             query = f"{query.rstrip(';')} LIMIT {max_rows}"
             logger.debug(f"Added LIMIT {max_rows} to query without explicit limit")
 
+        assert self.pool is not None  # Type assertion for mypy
         async with self.pool.acquire() as conn:
             if params:
                 rows = await conn.fetch(query, *params)

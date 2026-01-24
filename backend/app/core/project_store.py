@@ -138,6 +138,7 @@ class MongoDBProjectStore(ProjectStore):
     async def get_by_api_key_async(self, api_key: str) -> Optional[Project]:
         """Lookup project by API key."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         import logging
 
@@ -183,6 +184,7 @@ class MongoDBProjectStore(ProjectStore):
     async def get_by_id_async(self, project_id: str) -> Optional[Project]:
         """Lookup project by ID."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         project_doc = await self.db.projects.find_one({"project_id": project_id})
         if not project_doc:
             return None
@@ -191,6 +193,7 @@ class MongoDBProjectStore(ProjectStore):
     async def list_by_account_async(self, account_id: str) -> List[Project]:
         """List all projects for an account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         cursor = self.db.projects.find({"account_id": account_id})
         projects = []
@@ -201,6 +204,7 @@ class MongoDBProjectStore(ProjectStore):
     async def list_all_projects_async(self) -> List[Project]:
         """List all active projects across all accounts."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         cursor = self.db.projects.find({"is_active": True})
         projects = []
@@ -219,6 +223,7 @@ class MongoDBProjectStore(ProjectStore):
     ) -> Project:
         """Create a new project."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         if not project_id:
             project_id = generate_project_id()
@@ -286,6 +291,7 @@ class MongoDBProjectStore(ProjectStore):
     ) -> Optional[Project]:
         """Update project configuration."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         project_doc = await self.db.projects.find_one({"project_id": project_id})
         if not project_doc:
@@ -330,6 +336,7 @@ class MongoDBProjectStore(ProjectStore):
         # Remove None values
         updates = {k: v for k, v in updates.items() if v is not None}
 
+        assert self.db is not None  # Type assertion for mypy
         if updates:
             await self.db.projects.update_one(
                 {"project_id": project_id}, {"$set": updates}
@@ -342,6 +349,7 @@ class MongoDBProjectStore(ProjectStore):
     async def delete_project_async(self, project_id: str) -> bool:
         """Soft delete a project (set is_active=False)."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.projects.update_one(
             {"project_id": project_id},
@@ -354,11 +362,13 @@ class MongoDBProjectStore(ProjectStore):
     ) -> Optional[str]:
         """Rotate project API key. Returns old key hash for revocation tracking."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         project_doc = await self.db.projects.find_one({"project_id": project_id})
         if not project_doc:
             return None
 
+        assert self.db is not None  # Type assertion for mypy
         old_key_hash = project_doc.get("api_key_hash")
 
         await self.db.projects.update_one(

@@ -1,7 +1,7 @@
 """Admin dashboard endpoints for platform management."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from app.core.account_store import get_account_store
 from app.core.admin_otp import get_admin_otp_store
@@ -329,9 +329,10 @@ async def list_all_users(
         query_filter["role"] = role
 
     if search:
-        query_filter["email"] = {"$regex": search, "$options": "i"}
+        query_filter["email"] = {"$regex": search, "$options": "i"}  # type: ignore[assignment]
 
     # Paginate and collect docs
+    assert user_store.db is not None  # Type assertion for mypy
     skip = (page - 1) * limit
     cursor = (
         user_store.db.users.find(query_filter)
@@ -348,7 +349,8 @@ async def list_all_users(
     project_counts: dict = {}
     if project_store:
         try:
-            await project_store._ensure_connected()
+            await project_store._ensure_connected()  # type: ignore[attr-defined]
+            assert project_store.db is not None  # Type assertion for mypy
             account_ids = list(
                 {d.get("account_id") for d in docs if d.get("account_id")}
             )
@@ -751,6 +753,7 @@ async def get_platform_stats(
 
     # Count users (exclude admin users to match Users table behavior)
     await user_store._ensure_connected()
+    assert user_store.db is not None  # Type assertion for mypy
     user_filter = {"role": {"$ne": "admin"}}  # Exclude admin users
     total_users = await user_store.db.users.count_documents(user_filter)
     verified_users = await user_store.db.users.count_documents(
@@ -758,7 +761,8 @@ async def get_platform_stats(
     )
 
     # Count projects (exclude demo project to match real user projects only)
-    await project_store._ensure_connected()
+    await project_store._ensure_connected()  # type: ignore[attr-defined]
+    assert project_store.db is not None  # Type assertion for mypy
     from app.core.demo_account import DEMO_PROJECT_ID
 
     project_filter = {
@@ -868,7 +872,7 @@ async def get_usage_analytics(
             end_dt = now
 
     # Build query filter
-    query_filter = {"timestamp": {"$gte": start_dt, "$lte": end_dt}}
+    query_filter: dict[str, Any] = {"timestamp": {"$gte": start_dt, "$lte": end_dt}}
     if account_id:
         query_filter["account_id"] = account_id
 
@@ -877,9 +881,10 @@ async def get_usage_analytics(
     total_execution_time_ms = 0.0
     total_tokens = 0
     queries_by_type = {"postgres": 0, "mongodb": 0}
-    daily_data: dict = {}  # date_str -> {queries, execution_time_ms}
+    daily_data: dict[str, dict[str, float]] = {}  # date_str -> {queries, execution_time_ms}
 
     try:
+        assert user_store.db is not None  # Type assertion for mypy
         async for log in user_store.db.usage_logs.find(query_filter):
             total_queries += 1
             exec_time = log.get("execution_time_ms", 0.0)
@@ -899,7 +904,7 @@ async def get_usage_analytics(
                 date_str = timestamp.strftime("%Y-%m-%d")
                 if date_str not in daily_data:
                     daily_data[date_str] = {"queries": 0, "execution_time_ms": 0.0}
-                daily_data[date_str]["queries"] += 1
+                daily_data[date_str]["queries"] = int(daily_data[date_str].get("queries", 0)) + 1  # type: ignore[assignment]
                 daily_data[date_str]["execution_time_ms"] += exec_time
 
     except Exception as e:
@@ -916,7 +921,7 @@ async def get_usage_analytics(
             daily_usage.append(
                 UsageDataPoint(
                     date=date_str,
-                    queries=daily_data[date_str]["queries"],
+                    queries=int(daily_data[date_str]["queries"]),
                     execution_time_ms=daily_data[date_str]["execution_time_ms"],
                 )
             )
@@ -982,7 +987,7 @@ async def get_database_health(
     all_projects = await project_store.list_all_projects_async()
 
     # Group projects by account_id
-    projects_by_account = {}
+    projects_by_account: dict[str, list] = {}
     for project in all_projects:
         if project.account_id not in projects_by_account:
             projects_by_account[project.account_id] = []

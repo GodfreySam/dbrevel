@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from functools import wraps
-from typing import TypeVar, Callable, Type, Tuple
+from typing import TypeVar, Callable, Type, Tuple, Awaitable, Coroutine, Any
 import random
 
 logger = logging.getLogger(__name__)
@@ -12,14 +12,14 @@ T = TypeVar("T")
 
 
 async def retry_with_exponential_backoff(
-    func: Callable[..., T],
+    func: Callable[..., Awaitable[T]],
     *args,
     max_retries: int = 3,
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
     exponential_base: float = 2.0,
     jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    exceptions: Tuple[Type[BaseException], ...] = (Exception,),
     **kwargs,
 ) -> T:
     """Retry an async function with exponential backoff
@@ -70,7 +70,9 @@ async def retry_with_exponential_backoff(
             await asyncio.sleep(delay)
 
     # Should never reach here, but just in case
-    raise last_exception
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("Retry loop completed without result or exception")
 
 
 def with_retry(
@@ -79,7 +81,7 @@ def with_retry(
     max_delay: float = 60.0,
     exponential_base: float = 2.0,
     jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    exceptions: Tuple[Type[BaseException], ...] = (Exception,),
 ):
     """Decorator to add retry logic with exponential backoff to async functions
 
@@ -101,7 +103,7 @@ def with_retry(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Coroutine[Any, Any, T]]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> T:
             return await retry_with_exponential_backoff(
@@ -116,6 +118,6 @@ def with_retry(
                 **kwargs,
             )
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator

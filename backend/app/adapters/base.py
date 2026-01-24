@@ -25,7 +25,7 @@ class DatabaseAdapter(ABC):
 
     @abstractmethod
     async def execute(
-        self, query: Any, params: List[Any] = None
+        self, query: Any, params: List[Any] | None = None
     ) -> List[Dict[str, Any]]:
         """Execute query and return results"""
         pass

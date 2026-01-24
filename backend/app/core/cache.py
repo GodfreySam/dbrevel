@@ -4,17 +4,42 @@ import hashlib
 import logging
 import orjson
 import redis
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Type alias for Redis client (can be real Redis or MockRedis)
+RedisClient = Union[redis.Redis[str], Any]
+
+
+# A simple mock client that does nothing, to avoid errors
+class MockRedis:
+    def get(self, name: str) -> None:
+        return None
+
+    def set(self, name: str, value: Any, ex: Optional[int] = None) -> None:
+        pass
+
+    def flushdb(self) -> None:
+        pass
+
+    def ping(self) -> None:
+        raise redis.exceptions.ConnectionError
+
+    def scan_iter(self, match: str) -> list:
+        return []
+
+    def delete(self, key: str) -> None:
+        pass
+
+
 # Initialize Redis client from the URL in settings
 # The client will be shared across the application
 try:
     # Adding decode_responses=True to handle strings automatically
-    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+    redis_client: RedisClient = redis.from_url(settings.REDIS_URL, decode_responses=True)
     # Check if the connection is alive
     redis_client.ping()
 except redis.exceptions.ConnectionError:
@@ -23,41 +48,12 @@ except redis.exceptions.ConnectionError:
     logger.debug(
         "Redis not available - caching will be disabled (this is OK for local development)"
     )
-
-    # A simple mock client that does nothing, to avoid errors
-    class MockRedis:
-        def get(self, name):
-            return None
-
-        def set(self, name, value, ex=None):
-            pass
-
-        def flushdb(self):
-            pass
-
-        def ping(self):
-            raise redis.exceptions.ConnectionError
-
     redis_client = MockRedis()
 except Exception as e:
     # Unexpected errors - log at info level but don't fail
     logger.info(
         f"Redis initialization issue: {type(e).__name__}. Caching will be disabled."
     )
-
-    class MockRedis:
-        def get(self, name):
-            return None
-
-        def set(self, name, value, ex=None):
-            pass
-
-        def flushdb(self):
-            pass
-
-        def ping(self):
-            raise redis.exceptions.ConnectionError
-
     redis_client = MockRedis()
 
 

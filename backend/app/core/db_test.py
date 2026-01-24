@@ -74,6 +74,7 @@ async def test_postgres_connection_lightweight(
             logger.warning(f"PostgreSQL connection failed: {str(e)}")
             raise
 
+        assert adapter.pool is not None  # Type assertion for mypy
         try:
             async with adapter.pool.acquire() as conn:
                 result = await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=10.0)
@@ -87,7 +88,7 @@ async def test_postgres_connection_lightweight(
             raise
 
         logger.info("✓ PostgreSQL connection test successful")
-        schema_preview = {
+        schema_preview: Dict[str, Any] = {
             "database_name": db_name,
             "table_count": None,
             "tables": [],
@@ -183,7 +184,7 @@ async def test_mongodb_connection_lightweight(
         await adapter.health_check()
 
         # Return minimal schema preview (no introspection)
-        schema_preview = {
+        schema_preview: Dict[str, Any] = {
             "database_name": db_name,
             "collection_count": None,  # Not counted in lightweight test
             "collections": [],

@@ -9,7 +9,7 @@ from app.adapters.base import DatabaseAdapter
 from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import DatabaseSchema
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 # MongoDB collection name validation pattern
@@ -25,7 +25,7 @@ class MongoDBAdapter(DatabaseAdapter):
         self.connection_string = connection_string
         self.database_name = database
         self.client: Optional[AsyncIOMotorClient] = None
-        self.db = None
+        self.db: Optional[AsyncIOMotorDatabase[Any]] = None
         self._schema: Optional[DatabaseSchema] = None
 
     async def connect(self) -> None:
@@ -82,6 +82,7 @@ class MongoDBAdapter(DatabaseAdapter):
             return self._schema
 
         # Verify connection before introspection
+        assert self.client is not None  # Type assertion for mypy
         try:
             await self.client.admin.command("ping")
         except Exception as e:
@@ -89,6 +90,7 @@ class MongoDBAdapter(DatabaseAdapter):
             # Try to reconnect
             await self.connect()
 
+        assert self.db is not None  # Type assertion for mypy
         collections = await self.db.list_collection_names()
 
         schema_data = {}
@@ -119,11 +121,14 @@ class MongoDBAdapter(DatabaseAdapter):
                                 "nullable": False,
                                 "examples": [],
                             }
-                        if len(fields[key]["examples"]) < 3:
-                            # Truncate long values
-                            example_str = str(value)[:50]
-                            if example_str not in fields[key]["examples"]:
-                                fields[key]["examples"].append(example_str)
+                        field_info = fields[key]
+                        if isinstance(field_info, dict):
+                            examples = field_info.get("examples", [])
+                            if isinstance(examples, list) and len(examples) < 3:
+                                # Truncate long values
+                                example_str = str(value)[:50]
+                                if example_str not in examples:
+                                    examples.append(example_str)
 
                 # Get document count (with timeout)
                 count = await collection.count_documents({})
@@ -156,15 +161,15 @@ class MongoDBAdapter(DatabaseAdapter):
 
     async def execute(
         self,
-        pipeline: List[Dict[str, Any]],
-        collection: str = None,
+        query: Any,  # For MongoDB, this is a pipeline
+        params: List[Any] | None = None,  # For MongoDB, this is collection name
         max_docs: int = 10000,
     ) -> List[Dict[str, Any]]:
         """Execute MongoDB aggregation pipeline with result size limits
 
         Args:
-            pipeline: MongoDB aggregation pipeline
-            collection: Collection name
+            query: MongoDB aggregation pipeline (list of dicts)
+            params: Collection name (optional, can be extracted from pipeline)
             max_docs: Maximum number of documents to return (default: 10000)
 
         Returns:
@@ -173,7 +178,11 @@ class MongoDBAdapter(DatabaseAdapter):
         Raises:
             ValueError: If collection name is invalid or missing
         """
+        # Convert query to pipeline (for MongoDB, query is a pipeline)
+        pipeline: List[Dict[str, Any]] = query if isinstance(query, list) else []
+        collection: str | None = params[0] if params and len(params) > 0 else None
 
+        assert self.db is not None  # Type assertion for mypy
         if collection:
             # Validate collection name to prevent NoSQL injection
             if not self._validate_collection_name(collection):
@@ -184,7 +193,7 @@ class MongoDBAdapter(DatabaseAdapter):
             coll = self.db[collection]
         else:
             # Try to extract collection from pipeline
-            if pipeline and "collection" in pipeline[0]:
+            if pipeline and isinstance(pipeline[0], dict) and "collection" in pipeline[0]:
                 collection = pipeline[0]["collection"]
                 if not self._validate_collection_name(collection):
                     raise ValueError(
@@ -196,7 +205,7 @@ class MongoDBAdapter(DatabaseAdapter):
                 raise ValueError("Collection name required for MongoDB queries")
 
         # Add $limit stage if not present to prevent memory issues
-        has_limit = any("$limit" in stage for stage in pipeline)
+        has_limit = any("$limit" in stage for stage in pipeline if isinstance(stage, dict))
         if not has_limit:
             pipeline.append({"$limit": max_docs})
             logger.debug(f"Added $limit {max_docs} to pipeline without explicit limit")

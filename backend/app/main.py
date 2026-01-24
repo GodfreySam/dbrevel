@@ -36,9 +36,37 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+
+def safe_rate_limit_handler(request: Request, exc: Exception):
+    """Safe rate limit handler that handles both RateLimitExceeded and other exceptions."""
+    from fastapi.responses import JSONResponse
+    from slowapi import _rate_limit_exceeded_handler
+    if isinstance(exc, RateLimitExceeded):
+        # Use the standard handler for RateLimitExceeded
+        return _rate_limit_exceeded_handler(request, exc)
+    else:
+        # For other exceptions (like ConnectionError), return a generic error
+        return JSONResponse(
+            status_code=429,
+            content={"error": f"Rate limit exceeded: {str(exc)}"}
+        )
+
+
+def safe_rate_limit_handler(request: Request, exc: Exception):
+    """Safe rate limit handler that handles both RateLimitExceeded and other exceptions."""
+    from fastapi.responses import JSONResponse
+    if isinstance(exc, RateLimitExceeded):
+        # Use the standard handler for RateLimitExceeded
+        return _rate_limit_exceeded_handler(request, exc)
+    else:
+        # For other exceptions (like ConnectionError), return a generic error
+        return JSONResponse(
+            status_code=429,
+            content={"error": f"Rate limit exceeded: {str(exc)}"}
+        )
 
 # Suppress Python version warnings from Google libraries
 # These are informational warnings about future deprecation (2026)
@@ -652,7 +680,7 @@ add_exception_handlers(app)
 # Add rate limiting middleware (if limiter is initialized)
 if limiter is not None:
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, safe_rate_limit_handler)
     app.add_middleware(SlowAPIMiddleware)
     logger.info("Rate limiting middleware enabled")
 else:

@@ -29,14 +29,51 @@ export default function DatabaseConnectionStatus({
 		);
 	};
 
-	const hasPostgres = isValidUrl(project.postgres_url);
-	const hasMongo = isValidUrl(project.mongodb_url);
+	// Check both legacy fields and new databases array
+	const hasPostgresLegacy = isValidUrl(project.postgres_url);
+	const hasMongoLegacy = isValidUrl(project.mongodb_url);
+	
+	// Check new format (databases array)
+	const hasPostgresNew = project.databases?.some(
+		(db) => db.type.toLowerCase() === "postgres" && isValidUrl(db.connection_url)
+	) || false;
+	const hasMongoNew = project.databases?.some(
+		(db) => db.type.toLowerCase() === "mongodb" && isValidUrl(db.connection_url)
+	) || false;
+
+	const hasPostgres = hasPostgresLegacy || hasPostgresNew;
+	const hasMongo = hasMongoLegacy || hasMongoNew;
 
 	const testConnection = async () => {
 		setIsTesting(true);
 		setResults(null);
 
 		try {
+			console.log("[DatabaseConnectionStatus] Testing connection for project:", project.id);
+			console.log("[DatabaseConnectionStatus] Token exists:", !!token);
+			console.log("[DatabaseConnectionStatus] Token preview:", token ? `${token.substring(0, 20)}...` : "NO TOKEN");
+			console.log("[DatabaseConnectionStatus] Request payload:", { project_id: project.id });
+			
+			// First, test if we can reach the backend at all
+			try {
+				console.log("[DatabaseConnectionStatus] Testing ping endpoint first...");
+				const pingResult = await apiFetchJson("/projects/test-ping", {
+					method: "GET",
+					headers: {
+						Authorization: `Bearer ${token}`,
+					},
+				}, logout);
+				console.log("[DatabaseConnectionStatus] Ping result:", pingResult);
+			} catch (pingError) {
+				console.error("[DatabaseConnectionStatus] Ping test failed:", pingError);
+			}
+			
+			const requestBody = {
+				project_id: project.id,
+			};
+			console.log("[DatabaseConnectionStatus] Sending POST request with body:", requestBody);
+			console.log("[DatabaseConnectionStatus] Body as JSON string:", JSON.stringify(requestBody));
+			
 			const result = await apiFetchJson<{
 				postgres?: { success: boolean; error?: string; schema_preview?: any };
 				mongodb?: { success: boolean; error?: string; schema_preview?: any };
@@ -48,21 +85,25 @@ export default function DatabaseConnectionStatus({
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${token}`,
 					},
-					body: JSON.stringify({
-						project_id: project.id,
-					}),
+					body: JSON.stringify(requestBody),
 				},
 				logout,
 			);
+			console.log("[DatabaseConnectionStatus] Test connection result:", result);
 
 			const formattedResults: { postgres?: string; mongodb?: string } = {};
 
 			if (result.postgres) {
 				if (result.postgres.success) {
 					const preview = result.postgres.schema_preview;
-					const tableCount = preview?.table_count || 0;
+					const tableCount = preview?.table_count;
 					const dbName = preview?.database_name || "database";
-					formattedResults.postgres = `Success: Connected to ${dbName} (${tableCount} tables)`;
+					// Handle fast test (table_count is null) vs full introspection
+					if (tableCount !== null && tableCount !== undefined) {
+						formattedResults.postgres = `Success: Connected to ${dbName} (${tableCount} tables)`;
+					} else {
+						formattedResults.postgres = `Success: Connected to ${dbName}`;
+					}
 				} else {
 					formattedResults.postgres = `Error: ${
 						result.postgres.error || "Connection failed"
@@ -73,9 +114,14 @@ export default function DatabaseConnectionStatus({
 			if (result.mongodb) {
 				if (result.mongodb.success) {
 					const preview = result.mongodb.schema_preview;
-					const collCount = preview?.collection_count || 0;
+					const collCount = preview?.collection_count;
 					const dbName = preview?.database_name || "database";
-					formattedResults.mongodb = `Success: Connected to ${dbName} (${collCount} collections)`;
+					// Handle lightweight test (collection_count is null) vs full introspection
+					if (collCount !== null && collCount !== undefined) {
+						formattedResults.mongodb = `Success: Connected to ${dbName} (${collCount} collections)`;
+					} else {
+						formattedResults.mongodb = `Success: Connected to ${dbName}`;
+					}
 				} else {
 					formattedResults.mongodb = `Error: ${
 						result.mongodb.error || "Connection failed"
@@ -85,6 +131,7 @@ export default function DatabaseConnectionStatus({
 
 			setResults(formattedResults);
 		} catch (err) {
+			console.error("Test connection error:", err);
 			const errorMessage =
 				err instanceof Error ? err.message : "Connection test failed";
 			setResults({

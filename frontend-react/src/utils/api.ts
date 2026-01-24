@@ -1,44 +1,80 @@
 /**
- * API utility functions with automatic 401 handling
+ * API utility functions with automatic 401 handling, retry logic, and better error messages
  */
 
 import { config } from "../config";
 import { parseApiError } from "./handleApiError";
+import { withRetry, RetryOptions } from "./retry";
+import { getUserFriendlyError } from "./errorMessages";
+import * as Sentry from "@sentry/react";
 
 const TOKEN_KEY = "dbrevel_auth_token";
 
 /**
+ * Fetch wrapper with retry logic and better error handling
+ */
+async function fetchWithRetry(
+	url: string,
+	options: RequestInit,
+	retryOptions?: RetryOptions
+): Promise<Response> {
+	return withRetry(
+		async () => {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => {
+				controller.abort();
+			}, config.timeout);
+
+			try {
+				const response = await fetch(url, {
+					...options,
+					signal: controller.signal,
+				});
+				clearTimeout(timeoutId);
+				return response;
+			} catch (error: any) {
+				clearTimeout(timeoutId);
+				if (error.name === "AbortError") {
+					const timeoutError = new Error(
+						`Request timeout: The server did not respond within ${config.timeout / 1000} seconds`
+					) as any;
+					timeoutError.status = 408;
+					throw timeoutError;
+				}
+				throw error;
+			}
+		},
+		{
+			maxRetries: 3,
+			initialDelay: 1000,
+			maxDelay: 10000,
+			retryableStatuses: [408, 429, 500, 502, 503, 504],
+			...retryOptions,
+		}
+	);
+}
+
+/**
  * Fetch wrapper that automatically handles 401 errors by logging out
- * @param url - API endpoint URL (relative to config.apiUrl)
- * @param options - Fetch options
- * @param onUnauthorized - Callback when 401 is received (typically logout function)
- * @returns Promise<Response>
  */
 export async function apiFetch(
 	url: string,
 	options: RequestInit = {},
 	onUnauthorized?: () => void,
 ): Promise<Response> {
-	// Ensure URL is absolute
 	const fullUrl = url.startsWith("http") ? url : `${config.apiUrl}${url}`;
 
-	// Automatically add Authorization header if token exists and not already provided
 	const headers = new Headers();
-
-	// Copy existing headers if provided
 	if (options.headers) {
 		if (options.headers instanceof Headers) {
-			// If it's already a Headers object, copy all entries
 			options.headers.forEach((value, key) => {
 				headers.set(key, value);
 			});
 		} else if (Array.isArray(options.headers)) {
-			// If it's an array of tuples
 			options.headers.forEach(([key, value]) => {
 				headers.set(key, value);
 			});
 		} else {
-			// If it's a plain object
 			Object.entries(options.headers).forEach(([key, value]) => {
 				if (value !== null && value !== undefined) {
 					headers.set(key, String(value));
@@ -47,7 +83,6 @@ export async function apiFetch(
 		}
 	}
 
-	// Add Authorization header if not already present
 	if (!headers.has("Authorization")) {
 		const token = localStorage.getItem(TOKEN_KEY);
 		if (token) {
@@ -60,63 +95,68 @@ export async function apiFetch(
 		headers: headers,
 	};
 
-	const response = await fetch(fullUrl, optionsWithAuth);
+	let response: Response;
+	try {
+		response = await fetchWithRetry(fullUrl, optionsWithAuth);
+	} catch (error: any) {
+		if (import.meta.env.VITE_SENTRY_DSN) {
+			Sentry.captureException(error, {
+				tags: { component: "apiFetch" },
+				extra: { url: fullUrl, method: options.method },
+			});
+		}
+		throw error;
+	}
 
-	// Handle 401 Unauthorized - token expired or invalid
 	if (response.status === 401 && onUnauthorized) {
-		console.warn(
-			`401 Unauthorized on ${url}. Token may be expired or invalid.`,
-		);
 		onUnauthorized();
-		// Redirect to login will be handled by ProtectedRoute
 	}
 
-	// Handle 403 Forbidden - email not verified or insufficient permissions
-	// Log for debugging but don't auto-logout (user might need to verify email)
-	if (response.status === 403) {
-		const errorText = await response
-			.clone()
-			.text()
-			.catch(() => "");
-		console.warn(
-			`403 Forbidden on ${url}. This may indicate email verification is required or insufficient permissions.`,
-			errorText ? `Error: ${errorText}` : "",
-		);
-	}
-
-	// Handle 404 Not Found - might indicate tenant not found or resource deleted
-	if (response.status === 404) {
-		const errorText = await response
-			.clone()
-			.text()
-			.catch(() => "");
-		console.warn(
-			`404 Not Found on ${url}.`,
-			errorText ? `Error: ${errorText}` : "",
-		);
+	if (!response.ok && import.meta.env.VITE_SENTRY_DSN) {
+		const errorText = await response.clone().text().catch(() => "");
+		Sentry.captureMessage(`API Error: ${response.status}`, {
+			level: response.status >= 500 ? "error" : "warning",
+			tags: { status: response.status, url: fullUrl },
+			extra: { errorText, method: options.method },
+		});
 	}
 
 	return response;
 }
 
 /**
- * Fetch with JSON response parsing and 401 handling
- * @param url - API endpoint URL
- * @param options - Fetch options
- * @param onUnauthorized - Callback when 401 is received
- * @returns Promise<T>
+ * Fetch with JSON response parsing, retry logic, and user-friendly error messages
  */
 export async function apiFetchJson<T>(
 	url: string,
 	options: RequestInit = {},
 	onUnauthorized?: () => void,
 ): Promise<T> {
-	const response = await apiFetch(url, options, onUnauthorized);
+	try {
+		const response = await apiFetch(url, options, onUnauthorized);
 
-	if (!response.ok) {
-		const msg = await parseApiError(response);
-		throw new Error(msg || `HTTP ${response.status}: ${response.statusText}`);
+		if (!response.ok) {
+			const errorText = await parseApiError(response);
+			const friendlyError = getUserFriendlyError(errorText);
+			
+			const error = new Error(friendlyError.message) as any;
+			error.status = response.status;
+			error.category = friendlyError.category;
+			error.originalMessage = errorText;
+			throw error;
+		}
+
+		return response.json();
+	} catch (error: any) {
+		if (error.category) {
+			throw error;
+		}
+
+		const friendlyError = getUserFriendlyError(error);
+		const formattedError = new Error(friendlyError.message) as any;
+		formattedError.status = error.status || 0;
+		formattedError.category = friendlyError.category;
+		formattedError.originalMessage = error.message;
+		throw formattedError;
 	}
-
-	return response.json();
 }

@@ -1,4 +1,5 @@
 """Adapter manager for database connections"""
+
 from typing import Dict, Optional
 
 from app.adapters.base import DatabaseAdapter
@@ -10,10 +11,7 @@ mongodb_adapter: Optional[DatabaseAdapter] = None
 
 def get_adapters() -> Dict[str, Optional[DatabaseAdapter]]:
     """Get all database adapters"""
-    return {
-        "postgres": postgres_adapter,
-        "mongodb": mongodb_adapter
-    }
+    return {"postgres": postgres_adapter, "mongodb": mongodb_adapter}
 
 
 def set_postgres_adapter(adapter: DatabaseAdapter):

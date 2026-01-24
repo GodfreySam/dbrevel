@@ -35,8 +35,9 @@ export interface ProjectSummary {
 export interface ProjectDetail extends ProjectSummary {
 	account_id: string;
 	api_key: string; // Masked (***) unless just created/revealed
-	postgres_url: string; // Masked
-	mongodb_url: string; // Masked
+	postgres_url: string; // Masked (legacy)
+	mongodb_url: string; // Masked (legacy)
+	databases?: Array<{ type: string; connection_url: string }>; // New format (masked)
 	updated_at: string;
 }
 

@@ -20,6 +20,7 @@ python-jose[cryptography]>=3.3.0,<4.0.0
 passlib[bcrypt]>=1.7.4,<2.0.0
 python-multipart>=0.0.6,<1.0.0
 cryptography>=41.0.0
+slowapi>=0.1.9,<1.0.0  # Rate limiting middleware
 
 # HTTP Client (for testing and external calls)
 # Updated to match google-genai requirements (>=0.28.1)
@@ -53,3 +54,9 @@ types-passlib>=1.7.7
 
 # Vercel Serverless Support
 mangum>=0.17.0,<1.0.0
+
+# Error Tracking
+sentry-sdk[fastapi]>=2.0.0,<3.0.0
+
+# Monitoring & Metrics
+prometheus-client>=0.20.0,<1.0.0

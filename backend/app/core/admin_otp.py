@@ -24,9 +24,7 @@ class AdminOTPStore:
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
             # Create index on expiration for cleanup
-            await self.db.admin_otps.create_index(
-                "expires_at", expireAfterSeconds=0
-            )
+            await self.db.admin_otps.create_index("expires_at", expireAfterSeconds=0)
             await self.db.admin_otps.create_index("email")
 
     def generate_otp(self) -> str:
@@ -48,6 +46,7 @@ class AdminOTPStore:
             OTP code string (6 digits)
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Invalidate any existing OTPs for this admin
         await self.db.admin_otps.update_many(
@@ -86,6 +85,7 @@ class AdminOTPStore:
             OTP document if valid, None otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         otp_doc = await self.db.admin_otps.find_one(
             {
@@ -126,6 +126,7 @@ class AdminOTPStore:
             True if OTP was found and marked, False otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.admin_otps.update_one(
             {"email": email, "otp": otp},
@@ -145,6 +146,7 @@ class AdminOTPStore:
             Number of OTPs invalidated
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.admin_otps.update_many(
             {"user_id": user_id, "used": False},

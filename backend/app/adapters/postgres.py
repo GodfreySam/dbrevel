@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import asyncpg
 from app.adapters.base import DatabaseAdapter
+from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import ColumnSchema, DatabaseSchema, TableSchema
 from asyncpg.exceptions import ConnectionDoesNotExistError
@@ -38,41 +39,59 @@ class PostgresAdapter(DatabaseAdapter):
         self.pool: Optional[asyncpg.Pool] = None
         self._schema: Optional[DatabaseSchema] = None
 
-    async def _validate_connection(self, conn: asyncpg.Connection) -> None:
-        """Validate a connection by running a simple query. Raises if connection is dead."""
-        try:
-            await conn.fetchval("SELECT 1")
-        except Exception as e:
-            # Connection is dead, let asyncpg handle it
-            raise ConnectionDoesNotExistError("Connection validation failed") from e
-
     async def connect(self) -> None:
         """
         Creates and establishes the connection pool to the database.
 
-        This method configures the pool for compatibility with connection
-        poolers by disabling the statement cache and validating connections.
+        Configures the pool for compatibility with connection poolers (Neon, Supabase, etc.)
+        by disabling the statement cache. Validates connections on actual use.
         """
-        # Disable statement cache for connection pooler compatibility
-        # Some connection poolers in transaction/statement pool mode don't support prepared statements
-        # max_inactive_connection_lifetime: recycle idle conns before server closes them
-        # setup: validate connections when acquired to catch dead ones early
-        self.pool = await asyncpg.create_pool(
-            self.connection_string,
-            min_size=1,
-            max_size=10,
-            command_timeout=60,
-            timeout=20,
-            statement_cache_size=0,
-            max_inactive_connection_lifetime=45,  # More aggressive: recycle before server closes
-            setup=self._validate_connection,  # Validate connections when acquired
-        )
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            self.pool = await asyncpg.create_pool(
+                self.connection_string,
+                min_size=settings.POSTGRES_POOL_MIN_SIZE,
+                max_size=settings.POSTGRES_POOL_MAX_SIZE,
+                command_timeout=60,
+                timeout=10,
+                statement_cache_size=0,
+                max_inactive_connection_lifetime=45,
+            )
+            logger.debug(
+                f"PostgreSQL connection pool created (min={settings.POSTGRES_POOL_MIN_SIZE}, max={settings.POSTGRES_POOL_MAX_SIZE})"
+            )
+        except (asyncio.TimeoutError, TimeoutError) as e:
+            # Timeout errors are common during startup/pre-warming - log as warning
+            logger.warning(
+                "PostgreSQL connection pool creation timed out (will retry on-demand): %s",
+                e,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Failed to create PostgreSQL connection pool: %s", e, exc_info=True
+            )
+            raise
 
     async def disconnect(self) -> None:
         """Closes the connection pool and terminates all database connections."""
         if self.pool:
-            await self.pool.close()
-            self.pool = None
+            try:
+                # Close the pool with timeout to prevent hanging
+                await asyncio.wait_for(self.pool.close(), timeout=2.0)
+                self.pool = None
+            except asyncio.TimeoutError:
+                logging.getLogger(__name__).warning(
+                    "PostgreSQL pool close timed out, forcing close"
+                )
+                self.pool = None
+            except Exception as e:
+                logging.getLogger(__name__).warning(
+                    f"Error closing PostgreSQL pool: {e}"
+                )
+                self.pool = None
 
     async def _reconnect_pool(self) -> None:
         """Close the pool and create a new one. Use after ConnectionDoesNotExistError so retries get fresh connections."""
@@ -133,19 +152,23 @@ class PostgresAdapter(DatabaseAdapter):
         """
 
         try:
+            # Try to acquire and use connection - if it fails, reconnect pool and retry
+            assert self.pool is not None  # Type assertion for mypy
             async with self.pool.acquire() as conn:
-                # Validate connection is alive before use
-                # If dead, raise ConnectionDoesNotExistError to trigger reconnect and retry
                 try:
-                    await conn.fetchval("SELECT 1")
+                    # Try the actual query - if connection is dead, it will fail naturally
+                    rows = await conn.fetch(meta_query)
                 except (ConnectionDoesNotExistError, Exception) as e:
-                    # Connection is dead or invalid, raise to exit context and trigger reconnect
-                    if isinstance(e, ConnectionDoesNotExistError):
-                        raise
-                    # Wrap other connection errors as ConnectionDoesNotExistError
-                    raise ConnectionDoesNotExistError(f"Connection validation failed: {e}") from e
-                
-                rows = await conn.fetch(meta_query)
+                    # If connection is dead, reconnect pool and let retry mechanism handle it
+                    if (
+                        isinstance(e, ConnectionDoesNotExistError)
+                        or "connection" in str(e).lower()
+                    ):
+                        await self._reconnect_pool()
+                        raise ConnectionDoesNotExistError(
+                            f"Connection failed, pool reconnected: {e}"
+                        ) from e
+                    raise
 
                 # Group by table
                 tables = {}
@@ -164,9 +187,11 @@ class PostgresAdapter(DatabaseAdapter):
                         type=row["data_type"],
                         nullable=row["is_nullable"] == "YES",
                         primary_key=row["is_primary"],
-                        foreign_key=f"{row['foreign_table_name']}.{row['foreign_column_name']}"
-                        if row["foreign_table_name"]
-                        else None,
+                        foreign_key=(
+                            f"{row['foreign_table_name']}.{row['foreign_column_name']}"
+                            if row["foreign_table_name"]
+                            else None
+                        ),
                     )
 
                     tables[table_name].columns.append(column)
@@ -207,7 +232,7 @@ class PostgresAdapter(DatabaseAdapter):
             raise
 
     async def execute(
-        self, query: str, params: List[Any] = None, max_rows: int = 10000
+        self, query: str, params: List[Any] | None = None, max_rows: int = 10000
     ) -> List[Dict[str, Any]]:
         """
         Executes a SQL query and returns the results.
@@ -231,9 +256,9 @@ class PostgresAdapter(DatabaseAdapter):
         if "LIMIT" not in query_upper:
             # Add LIMIT to the query
             query = f"{query.rstrip(';')} LIMIT {max_rows}"
-            logger.debug(
-                f"Added LIMIT {max_rows} to query without explicit limit")
+            logger.debug(f"Added LIMIT {max_rows} to query without explicit limit")
 
+        assert self.pool is not None  # Type assertion for mypy
         async with self.pool.acquire() as conn:
             if params:
                 rows = await conn.fetch(query, *params)
@@ -266,8 +291,7 @@ class PostgresAdapter(DatabaseAdapter):
         try:
             if self.pool.is_closing():
                 logger = logging.getLogger(__name__)
-                logger.warning(
-                    "PostgreSQL pool is closing, attempting to reconnect...")
+                logger.warning("PostgreSQL pool is closing, attempting to reconnect...")
                 try:
                     await self.connect()  # Reconnect
                 except Exception as e:
@@ -282,15 +306,13 @@ class PostgresAdapter(DatabaseAdapter):
         for attempt in range(3):
             try:
                 # Use timeout to prevent hanging on slow connections
-                await asyncio.wait_for(
-                    self.pool.fetchval("SELECT 1"),
-                    timeout=5.0
-                )
+                await asyncio.wait_for(self.pool.fetchval("SELECT 1"), timeout=5.0)
                 return True
             except (asyncio.TimeoutError, Exception) as e:
                 if attempt == 2:  # Last attempt
                     logger.warning(
-                        f"PostgreSQL health check failed after {attempt + 1} attempts: {e}")
+                        f"PostgreSQL health check failed after {attempt + 1} attempts: {e}"
+                    )
                     return False
                 # Exponential backoff: 0.5s, 1s, 1.5s
                 await asyncio.sleep(0.5 * (attempt + 1))

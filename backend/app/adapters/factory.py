@@ -12,7 +12,7 @@ The factory is responsible for:
 
 import asyncio
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 from app.adapters.base import DatabaseAdapter
 from app.adapters.mongodb import MongoDBAdapter
@@ -64,8 +64,7 @@ class AdapterFactory:
         if account.postgres_url:
             pg_adapter_key = "postgres"
             try:
-                logger.info(
-                    f"Initializing PostgreSQL adapter for account {account.id}")
+                logger.info(f"Initializing PostgreSQL adapter for account {account.id}")
                 decrypted_pg_url = decrypt_database_url(account.postgres_url)
                 pg_db_name = decrypted_pg_url.split("/")[-1].split("?")[0]
                 postgres = PostgresAdapter(decrypted_pg_url)
@@ -97,14 +96,12 @@ class AdapterFactory:
             # This ensures consistency with how queries might reference the MongoDB database
             mongo_adapter_key = "mongodb"
             try:
-                logger.info(
-                    f"Initializing MongoDB adapter for account {account.id}")
+                logger.info(f"Initializing MongoDB adapter for account {account.id}")
                 decrypted_mongo_url = decrypt_database_url(account.mongodb_url)
                 # The actual database name from the URL might be different,
                 # but for consistency with query plans, we'll use "mongodb" as the key.
                 # The MongoDBAdapter constructor still needs the actual db_name for connection.
-                db_name_from_url = decrypted_mongo_url.split(
-                    "/")[-1].split("?")[0]
+                db_name_from_url = decrypted_mongo_url.split("/")[-1].split("?")[0]
                 if not db_name_from_url:
                     db_name_from_url = "dbrevel_demo"  # Fallback if no db name in URL
 
@@ -131,8 +128,7 @@ class AdapterFactory:
 
         # If no adapters were created successfully, raise an error
         if not adapters:
-            error_summary = "; ".join(
-                [f"{db}: {err}" for db, _, err in errors])
+            error_summary = "; ".join([f"{db}: {err}" for db, _, err in errors])
             raise RuntimeError(
                 f"Failed to create any database adapters for account {account.id}. "
                 f"Errors: {error_summary}"
@@ -165,9 +161,9 @@ class AdapterFactory:
             A dictionary of database adapters available for the account.
         """
         if account.id not in self._adapters_by_account:
-            self._adapters_by_account[
-                account.id
-            ] = await self._create_adapters_for_account(account)
+            self._adapters_by_account[account.id] = (
+                await self._create_adapters_for_account(account)
+            )
 
         return self._adapters_by_account[account.id]
 
@@ -178,11 +174,35 @@ class AdapterFactory:
         This should be called during application shutdown to ensure graceful
         termination of all database connections.
         """
-        for adapters in self._adapters_by_account.values():
-            for adapter in adapters.values():
-                await adapter.disconnect()
+        import asyncio
+
+        logger.info(
+            f"Shutting down {len(self._adapters_by_account)} account(s) with adapters..."
+        )
+
+        # Disconnect all adapters in parallel with timeout protection
+        disconnect_tasks = []
+        for account_id, adapters in self._adapters_by_account.items():
+            for db_name, adapter in adapters.items():
+                task = asyncio.create_task(adapter.disconnect())
+                disconnect_tasks.append((account_id, db_name, task))
+
+        # Wait for all disconnects with timeout
+        for account_id, db_name, task in disconnect_tasks:
+            try:
+                await asyncio.wait_for(task, timeout=2.0)
+                logger.debug(f"Disconnected {db_name} for account {account_id}")
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Timeout disconnecting {db_name} for account {account_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error disconnecting {db_name} for account {account_id}: {e}"
+                )
 
         self._adapters_by_account.clear()
+        logger.info("Adapter factory shutdown complete")
 
     async def get(self, account: AccountConfig, name: str) -> DatabaseAdapter:
         """
@@ -205,7 +225,7 @@ class AdapterFactory:
             )
         return adapters[name]
 
-    async def get_all_schemas(self, account: AccountConfig) -> Dict[str, any]:
+    async def get_all_schemas(self, account: AccountConfig) -> Dict[str, Any]:
         """
         Retrieves the database schemas for all available adapters for an account.
 

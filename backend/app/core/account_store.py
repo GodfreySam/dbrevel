@@ -5,6 +5,7 @@ in-memory, file-backed and MongoDB-backed implementations used by the
 application. A small set of helper utilities used by the store are
 implemented here as well (e.g. `generate_account_id`).
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,22 @@ from uuid import uuid4
 from app.core.account_keys import hash_api_key, verify_api_key
 from app.core.accounts import AccountConfig
 from app.core.encryption import encrypt_database_url
+
+
+def _truncate_error_message(error: Exception, max_length: int = 200) -> str:
+    """Truncate long error messages to keep logs clean."""
+    error_str = str(error)
+    # Remove verbose topology descriptions from MongoDB errors
+    if "Topology Description" in error_str:
+        parts = error_str.split("Topology Description")
+        if parts:
+            error_str = parts[0].strip()
+
+    # Truncate if still too long
+    if len(error_str) > max_length:
+        error_str = error_str[:max_length] + "..."
+
+    return error_str
 
 
 def generate_account_id() -> str:
@@ -56,7 +73,9 @@ class AccountStore:
         """Create a new account."""
         raise NotImplementedError
 
-    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(
+        self, account_id: str, **updates
+    ) -> Optional[AccountConfig]:
         """Update account configuration."""
         raise NotImplementedError
 
@@ -64,7 +83,9 @@ class AccountStore:
         """Delete an account."""
         raise NotImplementedError
 
-    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(
+        self, account_id: str, new_api_key: str
+    ) -> Optional[str]:
         """Rotate account API key. Returns old key hash for revocation tracking."""
         raise NotImplementedError
 
@@ -113,8 +134,7 @@ class InMemoryAccountStore(AccountStore):
         # Use provided account_id, or generate one
         if account_id:
             if account_id in self._accounts_by_id:
-                raise ValueError(
-                    f"Account with ID '{account_id}' already exists")
+                raise ValueError(f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -123,10 +143,8 @@ class InMemoryAccountStore(AccountStore):
                 account_id = generate_account_id()
 
         # Encrypt database URLs before storing
-        encrypted_pg_url = encrypt_database_url(
-            postgres_url) if postgres_url else ""
-        encrypted_mongo_url = encrypt_database_url(
-            mongodb_url) if mongodb_url else ""
+        encrypted_pg_url = encrypt_database_url(postgres_url) if postgres_url else ""
+        encrypted_mongo_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
 
         account = AccountConfig(
             id=account_id,
@@ -144,18 +162,18 @@ class InMemoryAccountStore(AccountStore):
 
         return account
 
-    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(
+        self, account_id: str, **updates
+    ) -> Optional[AccountConfig]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
 
         # Encrypt database URLs if they're being updated
         if "postgres_url" in updates and updates["postgres_url"]:
-            updates["postgres_url"] = encrypt_database_url(
-                updates["postgres_url"])
+            updates["postgres_url"] = encrypt_database_url(updates["postgres_url"])
         if "mongodb_url" in updates and updates["mongodb_url"]:
-            updates["mongodb_url"] = encrypt_database_url(
-                updates["mongodb_url"])
+            updates["mongodb_url"] = encrypt_database_url(updates["mongodb_url"])
 
         # Update fields
         for key, value in updates.items():
@@ -187,7 +205,9 @@ class InMemoryAccountStore(AccountStore):
 
         return True
 
-    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(
+        self, account_id: str, new_api_key: str
+    ) -> Optional[str]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -231,8 +251,7 @@ class FileAccountStore(AccountStore):
                     self._accounts_by_key[account.api_key] = account
                     # Note: In file-based store, we store keys in plain text
                     # In production, you'd want to encrypt or hash these
-                    self._key_hashes[account.id] = hash_api_key(
-                        account.api_key)
+                    self._key_hashes[account.id] = hash_api_key(account.api_key)
         except Exception as e:
             print(f"Error loading accounts from file: {e}")
 
@@ -291,8 +310,7 @@ class FileAccountStore(AccountStore):
         # Use provided account_id, or generate one
         if account_id:
             if account_id in self._accounts_by_id:
-                raise ValueError(
-                    f"Account with ID '{account_id}' already exists")
+                raise ValueError(f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -301,10 +319,8 @@ class FileAccountStore(AccountStore):
                 account_id = generate_account_id()
 
         # Encrypt database URLs before storing
-        encrypted_pg_url = encrypt_database_url(
-            postgres_url) if postgres_url else ""
-        encrypted_mongo_url = encrypt_database_url(
-            mongodb_url) if mongodb_url else ""
+        encrypted_pg_url = encrypt_database_url(postgres_url) if postgres_url else ""
+        encrypted_mongo_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
 
         account = AccountConfig(
             id=account_id,
@@ -323,18 +339,18 @@ class FileAccountStore(AccountStore):
         self._save_to_file()
         return account
 
-    async def update_account_async(self, account_id: str, **updates) -> Optional[AccountConfig]:
+    async def update_account_async(
+        self, account_id: str, **updates
+    ) -> Optional[AccountConfig]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
 
         # Encrypt database URLs if they're being updated
         if "postgres_url" in updates and updates["postgres_url"]:
-            updates["postgres_url"] = encrypt_database_url(
-                updates["postgres_url"])
+            updates["postgres_url"] = encrypt_database_url(updates["postgres_url"])
         if "mongodb_url" in updates and updates["mongodb_url"]:
-            updates["mongodb_url"] = encrypt_database_url(
-                updates["mongodb_url"])
+            updates["mongodb_url"] = encrypt_database_url(updates["mongodb_url"])
 
         for key, value in updates.items():
             if hasattr(account, key) and value is not None:
@@ -365,7 +381,9 @@ class FileAccountStore(AccountStore):
         self._save_to_file()
         return True
 
-    async def rotate_api_key_async(self, account_id: str, new_api_key: str) -> Optional[str]:
+    async def rotate_api_key_async(
+        self, account_id: str, new_api_key: str
+    ) -> Optional[str]:
         account = self._accounts_by_id.get(account_id)
         if not account:
             return None
@@ -389,6 +407,7 @@ class MongoDBAccountStore(AccountStore):
 
     def __init__(self, mongo_url: str, db_name: str = "dbrevel_platform"):
         from motor.motor_asyncio import AsyncIOMotorClient
+
         self.client: Optional[AsyncIOMotorClient] = None
         self.db = None
         self.mongo_url = mongo_url
@@ -400,8 +419,10 @@ class MongoDBAccountStore(AccountStore):
             import logging
 
             from motor.motor_asyncio import AsyncIOMotorClient
+
             logging.info(
-                f"MongoDBAccountStore: Connecting to MongoDB URL: {self.mongo_url}, database: {self.db_name}")
+                f"MongoDBAccountStore: Connecting to MongoDB URL: {self.mongo_url}, database: {self.db_name}"
+            )
             # Configure connection pool for better reliability and to reduce background reconnection noise
             self.client = AsyncIOMotorClient(
                 self.mongo_url,
@@ -415,20 +436,38 @@ class MongoDBAccountStore(AccountStore):
                 retryReads=True,  # Retry reads on transient failures
             )
             self.db = self.client[self.db_name]
-            # Verify connection by pinging
-            await self.client.admin.command('ping')
-            logging.info(
-                f"MongoDBAccountStore: Connected to database '{self.db_name}'")
-            # Create indexes
-            await self.db.users.create_index("email", unique=True)
-            await self.db.users.create_index("account_id")
-            await self.db.accounts.create_index("account_id", unique=True)
-            await self.db.accounts.create_index("api_key_hash")
-            logging.info(f"MongoDBAccountStore: Indexes created/verified")
+            # Verify connection by pinging (with error handling for partial connectivity)
+            try:
+                await self.client.admin.command("ping")
+                logging.info(
+                    f"MongoDBAccountStore: Connected to database '{self.db_name}'"
+                )
+            except Exception as e:
+                # Log warning but continue - MongoDB may have partial connectivity
+                error_msg = _truncate_error_message(e)
+                logging.warning(
+                    f"MongoDBAccountStore: Ping failed (may have partial connectivity): {error_msg}. "
+                    "The app will continue, but some operations may fail until MongoDB is fully available."
+                )
+            # Create indexes with error handling - don't fail if MongoDB has partial connectivity
+            try:
+                await self.db.users.create_index("email", unique=True)
+                await self.db.users.create_index("account_id")
+                await self.db.accounts.create_index("account_id", unique=True)
+                await self.db.accounts.create_index("api_key_hash")
+                logging.info("MongoDBAccountStore: Indexes created/verified")
+            except Exception as e:
+                # Log warning but don't fail - indexes may already exist or will be created later
+                error_msg = _truncate_error_message(e)
+                logging.warning(
+                    f"Could not create account store indexes (may already exist or primary unavailable): {error_msg}. "
+                    "The app will continue, but some operations may be slower until indexes are created."
+                )
 
     async def get_by_api_key_async(self, api_key: str) -> Optional[AccountConfig]:
         """Async version of get_by_api_key."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Try direct lookup first (for backward compatibility)
         account_doc = await self.db.accounts.find_one({"api_key": api_key})
@@ -446,24 +485,32 @@ class MongoDBAccountStore(AccountStore):
     async def get_by_id_async(self, account_id: str) -> Optional[AccountConfig]:
         """Async version of get_by_id."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Log for debugging
-        import logging
-        logging.debug(
-            f"MongoDBAccountStore: Querying for account_id={account_id}")
+        logging.debug(f"MongoDBAccountStore: Querying for account_id={account_id}")
 
         account_doc = await self.db.accounts.find_one({"account_id": account_id})
         if account_doc:
             logging.debug(
-                f"MongoDBAccountStore: Found account document for account_id={account_id}")
+                f"MongoDBAccountStore: Found account document for account_id={account_id}"
+            )
             return self._doc_to_account(account_doc)
         else:
             # Try legacy fallbacks: some older records used tenant_id or legacy_tenant_id
             try:
-                legacy_doc = await self.db.accounts.find_one({"$or": [{"tenant_id": account_id}, {"legacy_tenant_id": account_id}]})
+                legacy_doc = await self.db.accounts.find_one(
+                    {
+                        "$or": [
+                            {"tenant_id": account_id},
+                            {"legacy_tenant_id": account_id},
+                        ]
+                    }
+                )
                 if legacy_doc:
                     logging.warning(
-                        f"MongoDBAccountStore: Found account via legacy field for account_id={account_id}")
+                        f"MongoDBAccountStore: Found account via legacy field for account_id={account_id}"
+                    )
                     return self._doc_to_account(legacy_doc)
             except Exception:
                 # ignore errors in legacy lookup
@@ -471,19 +518,27 @@ class MongoDBAccountStore(AccountStore):
 
             # Try mapping via projects collection: find a project that references this legacy tenant id
             try:
-                proj = await self.db.projects.find_one({"$or": [{"tenant_id": account_id}, {"account_id": account_id}]}, {"account_id": 1})
+                proj = await self.db.projects.find_one(
+                    {"$or": [{"tenant_id": account_id}, {"account_id": account_id}]},
+                    {"account_id": 1},
+                )
                 if proj and proj.get("account_id"):
                     mapped_id = proj.get("account_id")
-                    mapped_doc = await self.db.accounts.find_one({"account_id": mapped_id})
+                    mapped_doc = await self.db.accounts.find_one(
+                        {"account_id": mapped_id}
+                    )
                     if mapped_doc:
                         logging.warning(
-                            f"MongoDBAccountStore: Mapped legacy account_id {account_id} -> {mapped_id} via projects collection")
+                            f"MongoDBAccountStore: Mapped legacy account_id {account_id} -> {mapped_id} via projects collection"
+                        )
                         return self._doc_to_account(mapped_doc)
             except Exception:
                 pass
 
             # Log all account_ids in database for debugging
-            all_docs = await self.db.accounts.find({}, {"account_id": 1}).to_list(length=100)
+            all_docs = await self.db.accounts.find({}, {"account_id": 1}).to_list(
+                length=100
+            )
             all_ids = [doc.get("account_id") for doc in all_docs]
             logging.warning(
                 f"MongoDBAccountStore: Account not found for account_id={account_id}. "
@@ -494,6 +549,7 @@ class MongoDBAccountStore(AccountStore):
     async def list_accounts_async(self) -> List[AccountConfig]:
         """Async version of list_accounts."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         cursor = self.db.accounts.find({})
         accounts = []
         async for doc in cursor:
@@ -512,16 +568,14 @@ class MongoDBAccountStore(AccountStore):
     ) -> AccountConfig:
         """Async version of create_account."""
         await self._ensure_connected()
-
-        import logging
+        assert self.db is not None  # Type assertion for mypy
 
         # Use provided account_id, or generate one
         if account_id:
             # Check if account_id already exists
             existing = await self.db.accounts.find_one({"account_id": account_id})
             if existing:
-                raise ValueError(
-                    f"Account with ID '{account_id}' already exists")
+                raise ValueError(f"Account with ID '{account_id}' already exists")
         else:
             # Generate secure UUID-based account ID
             account_id = generate_account_id()
@@ -556,7 +610,8 @@ class MongoDBAccountStore(AccountStore):
         # Validate database name
         if not self.db_name or self.db_name.strip() == "":
             logging.error(
-                f"MongoDBAccountStore: CRITICAL - Database name is empty or invalid!")
+                "MongoDBAccountStore: CRITICAL - Database name is empty or invalid!"
+            )
             raise RuntimeError("Database name is empty or invalid")
 
         # Log database info before insert
@@ -595,13 +650,16 @@ class MongoDBAccountStore(AccountStore):
         try:
             await self.db.accounts.find_one({"_id": result.inserted_id}, {"_id": 1})
             logging.debug(
-                f"MongoDBAccountStore: Confirmed account document exists with _id={result.inserted_id}")
+                f"MongoDBAccountStore: Confirmed account document exists with _id={result.inserted_id}"
+            )
         except Exception as e:
             logging.warning(
-                f"MongoDBAccountStore: Could not immediately read back account document: {e}")
+                f"MongoDBAccountStore: Could not immediately read back account document: {e}"
+            )
 
         # Verify the account was inserted by querying it back with retry
         import asyncio
+
         verify_doc = None
         for verify_attempt in range(3):
             verify_doc = await self.db.accounts.find_one({"account_id": account_id})
@@ -618,7 +676,9 @@ class MongoDBAccountStore(AccountStore):
 
         if not verify_doc:
             # Log all accounts for debugging
-            all_docs = await self.db.accounts.find({}, {"account_id": 1}).to_list(length=100)
+            all_docs = await self.db.accounts.find({}, {"account_id": 1}).to_list(
+                length=100
+            )
             all_ids = [doc.get("account_id") for doc in all_docs]
             logging.error(
                 f"MongoDBAccountStore: CRITICAL - Account {account_id} was inserted but cannot be retrieved! "
@@ -636,6 +696,7 @@ class MongoDBAccountStore(AccountStore):
     ) -> Optional[AccountConfig]:
         """Async version of update_account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         update_doc = {"updated_at": datetime.utcnow()}
 
@@ -647,15 +708,18 @@ class MongoDBAccountStore(AccountStore):
 
         # Encrypt database URLs if they're being updated
         if "postgres_url" in updates and updates["postgres_url"]:
-            updates["postgres_url"] = encrypt_database_url(
-                updates["postgres_url"])
+            updates["postgres_url"] = encrypt_database_url(updates["postgres_url"])
         if "mongodb_url" in updates and updates["mongodb_url"]:
-            updates["mongodb_url"] = encrypt_database_url(
-                updates["mongodb_url"])
+            updates["mongodb_url"] = encrypt_database_url(updates["mongodb_url"])
 
         # Add other updates
-        allowed_fields = ["name", "postgres_url",
-                          "mongodb_url", "gemini_mode", "gemini_api_key"]
+        allowed_fields = [
+            "name",
+            "postgres_url",
+            "mongodb_url",
+            "gemini_mode",
+            "gemini_api_key",
+        ]
         for field in allowed_fields:
             if field in updates and updates[field] is not None:
                 update_doc[field] = updates[field]
@@ -673,6 +737,7 @@ class MongoDBAccountStore(AccountStore):
     async def delete_account_async(self, account_id: str) -> bool:
         """Async version of delete_account."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
         result = await self.db.accounts.delete_one({"account_id": account_id})
         return result.deleted_count > 0
 
@@ -681,6 +746,7 @@ class MongoDBAccountStore(AccountStore):
     ) -> Optional[str]:
         """Async version of rotate_api_key."""
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Get current account to retrieve old key hash
         account_doc = await self.db.accounts.find_one({"account_id": account_id})

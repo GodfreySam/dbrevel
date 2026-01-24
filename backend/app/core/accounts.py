@@ -101,8 +101,8 @@ async def get_account_config(
     x_project_key: Optional[str] = Header(
         None,
         alias="X-Project-Key",
-        description=f"Project API key. Leave empty to use demo project with sample data, or use `dbrevel_demo_project_key` explicitly. Get your own API key from the dashboard.",
-        example="dbrevel_demo_project_key"
+        description="Project API key. Leave empty to use demo project with sample data, or use `dbrevel_demo_project_key` explicitly. Get your own API key from the dashboard.",
+        example="dbrevel_demo_project_key",
     ),
 ) -> Optional[AccountConfig]:
     """

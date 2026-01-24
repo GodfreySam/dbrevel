@@ -6,19 +6,21 @@ Licensed under the MIT License - see LICENSE file for details
 Migrated to google.genai package (replaces deprecated google.generativeai).
 Requires Python 3.10+.
 """
+
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-import orjson
 from app.core.accounts import AccountConfig
-from app.core.cache import query_plan_cache
 from app.core.config import settings
-from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
-                                 InvalidJSONError, InvalidQueryPlanError,
-
-                                 MissingBYOApiKeyError)
+from app.core.exceptions import (
+    GeminiAPIError,
+    GeminiResponseError,
+    InvalidJSONError,
+    InvalidQueryPlanError,
+    MissingBYOApiKeyError,
+)
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
@@ -47,7 +49,7 @@ class GeminiEngine:
         self,
         intent: str,
         schemas: Dict[str, DatabaseSchema],
-        security_ctx: SecurityContext
+        security_ctx: SecurityContext,
     ) -> QueryPlan:
         """Generate complete query execution plan from intent
 
@@ -71,11 +73,10 @@ class GeminiEngine:
         # Wrap Gemini API call with retry logic
         async def _call_gemini():
             logger.debug(
-                f"Calling Gemini API for query generation. Intent: {intent[:100]}...")
+                f"Calling Gemini API for query generation. Intent: {intent[:100]}..."
+            )
             return await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=self.generation_config
+                model=self.model_name, contents=prompt, config=self.generation_config
             )
 
         try:
@@ -86,12 +87,14 @@ class GeminiEngine:
                 max_retries=3,
                 initial_delay=1.0,
                 max_delay=10.0,
-                exceptions=(ConnectionError, TimeoutError,
-                            OSError),  # Network-related errors
+                exceptions=(
+                    ConnectionError,
+                    TimeoutError,
+                    OSError,
+                ),  # Network-related errors
             )
         except Exception as e:
-            logger.error(
-                f"Gemini API call failed after retries: {e}", exc_info=True)
+            logger.error(f"Gemini API call failed after retries: {e}", exc_info=True)
             raise GeminiAPIError(f"Gemini API call failed after retries: {e}")
 
         # Extract text from response (new API structure)
@@ -104,18 +107,15 @@ class GeminiEngine:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [
-            part.text for part in candidate.content.parts if part.text]
+        text_parts = [part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError(
-                "No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         # Join text parts, preserving newlines might help with JSON structure
         response_text = "\n".join(text_parts).strip()
 
         # Log raw response for debugging (truncated to avoid spam)
-        logger.debug(
-            f"Gemini raw response (first 500 chars): {response_text[:500]}")
+        logger.debug(f"Gemini raw response (first 500 chars): {response_text[:500]}")
 
         # Extract JSON from response - handle multiple formats
         plan_data = self._extract_json_from_response(response_text)
@@ -126,8 +126,11 @@ class GeminiEngine:
             for query in plan_data["queries"]:
                 database = query.get("database", "").lower()
                 query_value = query.get("query")
-                query_type = query.get("query_type", "").lower(
-                ) if query.get("query_type") else ""
+                query_type = (
+                    query.get("query_type", "").lower()
+                    if query.get("query_type")
+                    else ""
+                )
 
                 # Determine correct query_type based on database and query structure
                 if query_type == "mongodb":
@@ -144,7 +147,15 @@ class GeminiEngine:
                     query["query_type"] = "mongodb"
                 # Infer from query content: check for MongoDB operators
                 elif isinstance(query_value, str) and any(
-                    op in query_value for op in ["$match", "$group", "$project", "$limit", "$sort", "$lookup"]
+                    op in query_value
+                    for op in [
+                        "$match",
+                        "$group",
+                        "$project",
+                        "$limit",
+                        "$sort",
+                        "$lookup",
+                    ]
                 ):
                     query["query_type"] = "mongodb"
                 # Infer from database type
@@ -154,8 +165,9 @@ class GeminiEngine:
                     query["query_type"] = "sql"
                 # Final fallback: default based on query structure
                 else:
-                    query["query_type"] = "mongodb" if isinstance(
-                        query_value, list) else "sql"
+                    query["query_type"] = (
+                        "mongodb" if isinstance(query_value, list) else "sql"
+                    )
 
         # Create QueryPlan from response with validation
         try:
@@ -170,9 +182,7 @@ class GeminiEngine:
         return plan
 
     async def validate_query(
-        self,
-        query: DatabaseQuery,
-        schema: DatabaseSchema
+        self, query: DatabaseQuery, schema: DatabaseSchema
     ) -> Dict[str, Any]:
         """Use Gemini to validate query safety"""
 
@@ -204,7 +214,7 @@ Return JSON:
         response = await self.client.aio.models.generate_content(
             model=self.model_name,
             contents=validation_prompt,
-            config=self.generation_config
+            config=self.generation_config,
         )
 
         # Extract text from response (new API structure)
@@ -216,11 +226,9 @@ Return JSON:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [
-            part.text for part in candidate.content.parts if part.text]
+        text_parts = [part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError(
-                "No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         response_text = "\n".join(text_parts).strip()
 
@@ -232,7 +240,11 @@ Return JSON:
             logger.error(f"Failed to parse validation response: {e}")
             logger.error(f"Validation response text: {response_text[:500]}")
             # Return a safe default if parsing fails
-            return {"safe": False, "issues": [f"Failed to parse validation: {str(e)}"], "severity": "high"}
+            return {
+                "safe": False,
+                "issues": [f"Failed to parse validation: {str(e)}"],
+                "severity": "high",
+            }
 
     def _extract_json_from_response(self, response_text: str) -> dict:
         """
@@ -247,21 +259,21 @@ Return JSON:
         # Remove markdown code blocks if present
         if "```json" in response_text:
             # Extract content between ```json and ```
-            match = re.search(r'```json\s*(.*?)\s*```',
-                              response_text, re.DOTALL)
+            match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
             if match:
                 response_text = match.group(1).strip()
         elif "```" in response_text:
             # Extract content between ``` and ```
-            match = re.search(r'```\s*(.*?)\s*```', response_text, re.DOTALL)
+            match = re.search(r"```\s*(.*?)\s*```", response_text, re.DOTALL)
             if match:
                 response_text = match.group(1).strip()
 
         # Find the start of JSON (first opening brace)
-        json_start = response_text.find('{')
+        json_start = response_text.find("{")
         if json_start == -1:
             raise InvalidJSONError(
-                f"No JSON object found in response: {response_text[:200]}...")
+                f"No JSON object found in response: {response_text[:200]}..."
+            )
 
         # Extract just the first complete JSON object by finding balanced braces
         # This handles "Extra data" errors by only extracting the first valid JSON object
@@ -278,16 +290,16 @@ Return JSON:
             if escape_next:
                 escape_next = False
                 continue
-            if char == '\\':
+            if char == "\\":
                 escape_next = True
                 continue
             if char == '"' and not escape_next:
                 in_string = not in_string
                 continue
             if not in_string:
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
                         json_end_idx = i + 1
@@ -298,9 +310,9 @@ Return JSON:
             json_object_text = json_text[:json_end_idx].strip()
         else:
             # If braces don't balance, try to find the last } as fallback
-            last_brace = json_text.rfind('}')
+            last_brace = json_text.rfind("}")
             if last_brace > 0:
-                json_object_text = json_text[:last_brace+1].strip()
+                json_object_text = json_text[: last_brace + 1].strip()
             else:
                 json_object_text = json_text.strip()
 
@@ -312,7 +324,8 @@ Return JSON:
             return json.loads(json_object_text)
         except json.JSONDecodeError as e:
             logger.warning(
-                f"JSON parse failed after extraction: {str(e)}. Trying raw_decode...")
+                f"JSON parse failed after extraction: {str(e)}. Trying raw_decode..."
+            )
 
             # Fallback: try raw_decode as it might handle some edge cases better
             try:
@@ -341,7 +354,7 @@ Return JSON:
 
             # Remove any leading/trailing non-JSON characters
             # Sometimes Gemini adds prefixes like "Here's the query:" or similar
-            json_match = re.search(r'(\{.*\})', cleaned_text, re.DOTALL)
+            json_match = re.search(r"(\{.*\})", cleaned_text, re.DOTALL)
             if json_match:
                 json_candidate = json_match.group(1)
                 json_candidate = self._clean_json_text(json_candidate)
@@ -356,7 +369,7 @@ Return JSON:
             # Remove comments, fix trailing commas, etc.
             try:
                 # Try removing any lines that look like comments or explanations
-                lines = cleaned_text.split('\n')
+                lines = cleaned_text.split("\n")
                 json_lines = []
                 brace_count = 0
                 started = False
@@ -364,18 +377,18 @@ Return JSON:
                 for line in lines:
                     stripped = line.strip()
                     # Skip comment-like lines (but be careful - JSON strings might contain //)
-                    if stripped.startswith('//') and not started:
+                    if stripped.startswith("//") and not started:
                         continue
-                    if '{' in line:
+                    if "{" in line:
                         started = True
                     if started:
                         json_lines.append(line)
-                        brace_count += line.count('{') - line.count('}')
-                        if brace_count == 0 and '{' in line:
+                        brace_count += line.count("{") - line.count("}")
+                        if brace_count == 0 and "{" in line:
                             break
 
                 if json_lines:
-                    json_candidate = '\n'.join(json_lines)
+                    json_candidate = "\n".join(json_lines)
                     json_candidate = self._clean_json_text(json_candidate)
                     decoder = json.JSONDecoder()
                     plan_data, idx = decoder.raw_decode(json_candidate)
@@ -388,34 +401,38 @@ Return JSON:
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Error message: {str(e)}")
             logger.error(
-                f"Full response text ({len(response_text)} chars):\n{response_text}")
+                f"Full response text ({len(response_text)} chars):\n{response_text}"
+            )
             logger.error(f"JSON start position: {json_start}")
             logger.error(
-                f"JSON text attempted ({len(json_text)} chars):\n{json_text[:1000]}")
+                f"JSON text attempted ({len(json_text)} chars):\n{json_text[:1000]}"
+            )
 
             # Try one more time with a more aggressive approach: find the first complete JSON object
             # by counting braces more carefully
             try:
                 # Find first { and last } that balance out
-                first_brace = json_text.find('{')
+                first_brace = json_text.find("{")
                 if first_brace != -1:
                     brace_count = 0
                     last_valid_idx = first_brace
                     in_string = False
                     escape_next = False
-                    for i, char in enumerate(json_text[first_brace:], start=first_brace):
+                    for i, char in enumerate(
+                        json_text[first_brace:], start=first_brace
+                    ):
                         if escape_next:
                             escape_next = False
                             continue
-                        if char == '\\':
+                        if char == "\\":
                             escape_next = True
                             continue
                         if char == '"' and not escape_next:
                             in_string = not in_string
                         if not in_string:
-                            if char == '{':
+                            if char == "{":
                                 brace_count += 1
-                            elif char == '}':
+                            elif char == "}":
                                 brace_count -= 1
                                 if brace_count == 0:
                                     last_valid_idx = i + 1
@@ -426,7 +443,8 @@ Return JSON:
                         decoder = json.JSONDecoder()
                         plan_data, idx = decoder.raw_decode(json_candidate)
                         logger.info(
-                            f"Successfully parsed JSON using aggressive extraction")
+                            "Successfully parsed JSON using aggressive extraction"
+                        )
                         return plan_data
             except Exception as inner_e:
                 logger.error(f"Aggressive extraction also failed: {inner_e}")
@@ -442,23 +460,21 @@ Return JSON:
         """Clean JSON text by removing trailing commas and fixing common issues."""
         # Remove trailing commas before closing braces/brackets (but be careful)
         # This regex is more conservative - only removes trailing commas in objects/arrays
-        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
+        json_text = re.sub(r",(\s*[}\]])", r"\1", json_text)
         return json_text.strip()
 
     def _build_query_prompt(
         self,
         intent: str,
         schemas: Dict[str, DatabaseSchema],
-        security_ctx: SecurityContext
+        security_ctx: SecurityContext,
     ) -> str:
         """Build comprehensive prompt for query generation."""
 
-        schemas_json = {name: schema.model_dump()
-                        for name, schema in schemas.items()}
+        schemas_json = {name: schema.model_dump() for name, schema in schemas.items()}
 
         # Optimized shorter prompt
-        schemas_str = json.dumps(
-            schemas_json, separators=(",", ":"))  # Compact JSON
+        schemas_str = json.dumps(schemas_json, separators=(",", ":"))  # Compact JSON
 
         return f"""
 Generate optimized database query from user intent.
@@ -505,7 +521,8 @@ def build_gemini_engine(tenant: AccountConfig) -> GeminiEngine:
     if tenant.gemini_mode == "byo":
         if not tenant.gemini_api_key:
             raise MissingBYOApiKeyError(
-                "Account is configured for BYO Gemini but no API key is set")
+                "Account is configured for BYO Gemini but no API key is set"
+            )
         api_key = tenant.gemini_api_key
     else:
         api_key = settings.GEMINI_API_KEY

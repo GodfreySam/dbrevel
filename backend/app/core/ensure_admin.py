@@ -2,7 +2,6 @@
 
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
-from app.core.auth import hash_password
 from app.core.user_store import get_user_store
 from bson import ObjectId
 
@@ -25,7 +24,7 @@ async def ensure_admin_user():
         return
 
     # Ensure user_store database connection is ready
-    if hasattr(user_store, '_ensure_connected'):
+    if hasattr(user_store, "_ensure_connected"):
         await user_store._ensure_connected()
 
     admin_email = "freymantechnology@gmail.com"
@@ -36,11 +35,10 @@ async def ensure_admin_user():
     if existing_admin:
         # User exists - ensure they have admin role
         if existing_admin.get("role") != "admin":
-            print(
-                f"⚠ User {admin_email} exists but is not admin, updating role...")
+            print(f"⚠ User {admin_email} exists but is not admin, updating role...")
             await user_store.db.users.update_one(
                 {"_id": existing_admin["_id"]},
-                {"$set": {"role": "admin", "email_verified": True}}
+                {"$set": {"role": "admin", "email_verified": True}},
             )
             print(f"✓ Updated {admin_email} to admin role")
         else:
@@ -52,6 +50,7 @@ async def ensure_admin_user():
 
     # Generate a secure random password (user will use OTP login anyway)
     import secrets
+
     temp_password = secrets.token_urlsafe(32)
 
     # Create account for admin user (use async version to avoid event loop issues)
@@ -66,7 +65,7 @@ async def ensure_admin_user():
     )
 
     if not admin_account or not admin_account.id:
-        print(f"✗ Failed to create account for admin user")
+        print("✗ Failed to create account for admin user")
         return
 
     # Create admin user
@@ -80,20 +79,21 @@ async def ensure_admin_user():
         # Set admin role and mark email as verified
         await user_store.db.users.update_one(
             {"_id": ObjectId(admin_user.id)},
-            {"$set": {"role": "admin", "email_verified": True}}
+            {"$set": {"role": "admin", "email_verified": True}},
         )
 
         print(f"✓ Created admin user: {admin_email}")
-        print(f"  - Role: admin")
-        print(f"  - Email verified: True")
-        print(f"  - OTP login enabled at /admin/login")
+        print("  - Role: admin")
+        print("  - Email verified: True")
+        print("  - OTP login enabled at /admin/login")
 
     except Exception as e:
         error_msg = str(e)
         # If duplicate key error, user already exists (race condition during startup)
         if "E11000" in error_msg or "duplicate key" in error_msg:
             print(
-                f"ℹ️  Admin user {admin_email} already exists (created by another process)")
+                f"ℹ️  Admin user {admin_email} already exists (created by another process)"
+            )
             # Clean up the extra tenant we created
             await account_store.delete_account_async(admin_account.id)
         else:

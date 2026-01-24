@@ -26,12 +26,17 @@ export default function ProjectCard({
 }: ProjectCardProps) {
 	const { token, logout } = useAuth();
 	const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
+	const [revealing, setRevealing] = useState(false);
+	const [rotating, setRotating] = useState(false);
 
 	const copyToClipboard = (text: string) => {
 		navigator.clipboard.writeText(text);
 	};
 
 	const revealApiKey = async () => {
+		if (revealing) return; // Prevent double-clicks
+		
+		setRevealing(true);
 		try {
 			const result = await apiFetchJson<{
 				project_id: string;
@@ -45,11 +50,17 @@ export default function ProjectCard({
 			);
 			onApiKeyUpdate(project.id, result.api_key);
 		} catch (err) {
+			const errorMsg = err instanceof Error ? err.message : "Failed to reveal API key";
 			console.error("Failed to reveal API key:", err);
+			alert(errorMsg);
+		} finally {
+			setRevealing(false);
 		}
 	};
 
 	const rotateApiKey = async () => {
+		if (rotating) return; // Prevent double-clicks
+		
 		if (
 			!window.confirm(
 				"Are you sure you want to rotate this API key? The old key will stop working immediately.",
@@ -58,6 +69,7 @@ export default function ProjectCard({
 			return;
 		}
 
+		setRotating(true);
 		try {
 			const result = await apiFetchJson<{
 				project_id: string;
@@ -73,8 +85,11 @@ export default function ProjectCard({
 			);
 			onApiKeyUpdate(project.id, result.new_api_key);
 		} catch (err) {
+			const errorMsg = err instanceof Error ? err.message : "Failed to rotate API key";
 			console.error("Failed to rotate API key:", err);
-			alert("Failed to rotate API key. Please try again.");
+			alert(errorMsg);
+		} finally {
+			setRotating(false);
 		}
 	};
 
@@ -137,15 +152,17 @@ export default function ProjectCard({
 								) : (
 									<button
 										onClick={revealApiKey}
+										disabled={revealing}
 										className="icon-btn"
 										title="Reveal API Key"
 										style={{ fontSize: "12px", padding: "6px 12px" }}
 									>
-										Reveal
+										{revealing ? "Loading..." : "Reveal"}
 									</button>
 								)}
 								<button
 									onClick={rotateApiKey}
+									disabled={rotating}
 									className="icon-btn"
 									title="Rotate API Key"
 									style={{
@@ -154,7 +171,7 @@ export default function ProjectCard({
 										marginLeft: "8px",
 									}}
 								>
-									Rotate
+									{rotating ? "Rotating..." : "Rotate"}
 								</button>
 							</div>
 						</div>

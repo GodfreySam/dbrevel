@@ -29,61 +29,70 @@ class ConnectionTestResult:
         }
 
 
-async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTestResult:
+async def test_postgres_connection_lightweight(
+    url: str, timeout: int = 30
+) -> ConnectionTestResult:
     """
-    Test PostgreSQL connection and return schema preview.
+    Test PostgreSQL connection with lightweight connectivity check.
 
-    Handles PostgreSQL connection pooler quirks with retry logic.
+    This function performs a fast connection test (SELECT 1) without full schema
+    introspection to provide quick feedback to users. Full schema introspection
+    happens during actual query execution where it's needed.
 
     Args:
         url: PostgreSQL connection URL
-        timeout: Connection timeout in seconds
+        timeout: Connection timeout in seconds (capped at 10s for faster failure)
 
     Returns:
-        ConnectionTestResult with success status and schema preview
+        ConnectionTestResult with success status and minimal schema preview
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
     adapter = None
+    connect_timeout = min(timeout, 10)  # Cap at 10s for faster failure
     try:
+        safe_url = url.split("@")[-1] if "@" in url else url
+        logger.info(f"Testing PostgreSQL connection to: ...@{safe_url}")
+
+        db_name = "database"
+        try:
+            if "/" in url:
+                db_part = url.split("/")[-1].split("?")[0]
+                if db_part:
+                    db_name = db_part
+        except Exception:
+            pass
+
         adapter = PostgresAdapter(url)
-        # Retry connection attempt (pgbouncer can have transient issues)
-        for attempt in range(2):
-            try:
-                await asyncio.wait_for(adapter.connect(), timeout=timeout)
-                break
-            except Exception as e:
-                if attempt == 1:  # Last attempt
-                    raise
-                await asyncio.sleep(0.5)  # Brief delay before retry
+        try:
+            await asyncio.wait_for(adapter.connect(), timeout=connect_timeout)
+        except asyncio.TimeoutError:
+            logger.warning(f"PostgreSQL connection timed out after {connect_timeout}s")
+            raise
+        except Exception as e:
+            logger.warning(f"PostgreSQL connection failed: {str(e)}")
+            raise
 
-        # Introspect schema with retry for transient errors
-        schema = None
-        for attempt in range(2):
-            try:
-                schema = await adapter.introspect_schema()
-                break
-            except Exception as e:
-                if attempt == 1:  # Last attempt
-                    raise
-                await asyncio.sleep(0.5)  # Brief delay before retry
+        assert adapter.pool is not None  # Type assertion for mypy
+        try:
+            async with adapter.pool.acquire() as conn:
+                result = await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=10.0)
+                if result != 1:
+                    raise Exception("Unexpected query result")
+        except asyncio.TimeoutError:
+            logger.warning("PostgreSQL query test timed out")
+            raise
+        except Exception as e:
+            logger.warning(f"PostgreSQL query test failed: {str(e)}")
+            raise
 
-        # Create schema preview (first few tables with column counts)
-        # Ensure tables is a list before slicing
-        tables_list = list(schema.tables.values()) if schema.tables else []
-        schema_preview = {
-            "database_name": schema.name,
-            "table_count": len(tables_list),
-            "tables": [
-                {
-                    "name": table.name,
-                    "column_count": len(table.columns) if table.columns else 0,
-                    # First 5 columns - ensure columns is a list
-                    "columns": [col.name for col in (list(table.columns)[:5] if table.columns else [])],
-                }
-                # First 10 tables
-                for table in tables_list[:10]
-            ],
+        logger.info("✓ PostgreSQL connection test successful")
+        schema_preview: Dict[str, Any] = {
+            "database_name": db_name,
+            "table_count": None,
+            "tables": [],
         }
-
         await adapter.disconnect()
         return ConnectionTestResult(success=True, schema_preview=schema_preview)
 
@@ -91,7 +100,7 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
@@ -100,12 +109,10 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         error_msg = str(e)
-        import logging
-        logging.error(
-            f"PostgreSQL connection error: {error_msg}", exc_info=True)
+        logger.error("PostgreSQL connection error: %s", error_msg, exc_info=True)
         # Don't expose full connection details in error
         # Handle PostgreSQL connection pooler errors
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():
@@ -115,16 +122,112 @@ async def test_postgres_connection(url: str, timeout: int = 10) -> ConnectionTes
         elif "refused" in error_msg.lower() or "connection" in error_msg.lower():
             error_msg = "Connection refused - check host and port"
         elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-            error_msg = "Connection timeout - database may be unreachable or pooler is busy"
+            error_msg = (
+                "Connection timeout - database may be unreachable or pooler is busy"
+            )
         elif "pool" in error_msg.lower() or "pooler" in error_msg.lower():
             error_msg = "Connection pool error - try again in a moment"
 
         return ConnectionTestResult(success=False, error=error_msg)
 
 
+async def test_postgres_connection(url: str, timeout: int = 30) -> ConnectionTestResult:
+    """
+    Test PostgreSQL connection (backward compatibility wrapper).
+
+    This function calls the lightweight test for backward compatibility.
+    For fast connection testing, use test_postgres_connection_lightweight() directly.
+
+    Args:
+        url: PostgreSQL connection URL
+        timeout: Connection timeout in seconds
+
+    Returns:
+        ConnectionTestResult with success status and minimal schema preview
+    """
+    return await test_postgres_connection_lightweight(url, timeout)
+
+
+async def test_mongodb_connection_lightweight(
+    url: str, timeout: int = 10
+) -> ConnectionTestResult:
+    """
+    Test MongoDB connection with lightweight connectivity check.
+
+    This function performs a fast connection test (ping) without full schema
+    introspection to provide quick feedback to users. Full schema introspection
+    happens during actual query execution where it's needed.
+
+    Args:
+        url: MongoDB connection URL
+        timeout: Connection timeout in seconds
+
+    Returns:
+        ConnectionTestResult with success status and minimal schema preview
+    """
+    adapter = None
+    try:
+        # Extract database name from URL
+        db_name = url.split("/")[-1].split("?")[0]
+        if not db_name:
+            db_name = "test"
+
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info("Testing MongoDB connection (lightweight)")
+
+        adapter = MongoDBAdapter(url, db_name)
+        await asyncio.wait_for(adapter.connect(), timeout=timeout)
+
+        # Test connection with ping (lightweight check)
+        await adapter.health_check()
+
+        # Return minimal schema preview (no introspection)
+        schema_preview: Dict[str, Any] = {
+            "database_name": db_name,
+            "collection_count": None,  # Not counted in lightweight test
+            "collections": [],
+        }
+
+        await adapter.disconnect()
+        return ConnectionTestResult(success=True, schema_preview=schema_preview)
+
+    except asyncio.TimeoutError:
+        if adapter:
+            try:
+                await adapter.disconnect()
+            except Exception:
+                pass
+        return ConnectionTestResult(
+            success=False, error="Connection timeout - database may be unreachable"
+        )
+    except Exception as e:
+        if adapter:
+            try:
+                await adapter.disconnect()
+            except Exception:
+                pass
+        error_msg = str(e)
+        import logging
+
+        logging.error(
+            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True
+        )
+        # Sanitize error messages
+        if "authentication" in error_msg.lower():
+            error_msg = "Authentication failed - check username and password"
+        elif "refused" in error_msg.lower() or "connection" in error_msg.lower():
+            error_msg = "Connection refused - check host and port"
+        elif "not authorized" in error_msg.lower():
+            error_msg = "Not authorized - check database permissions"
+
+        return ConnectionTestResult(success=False, error=error_msg)
+
+
 async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTestResult:
     """
-    Test MongoDB connection and return schema preview.
+    Test MongoDB connection and return schema preview (full introspection).
 
     Args:
         url: MongoDB connection URL
@@ -141,6 +244,7 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
             db_name = "test"
 
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"Attempting MongoDB connection test with URL: {url}")
 
@@ -155,8 +259,9 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
 
         # Create schema preview
         # Ensure collections is a list before slicing
-        collections_list_items = list(
-            schema.collections.items()) if schema.collections else []
+        collections_list_items = (
+            list(schema.collections.items()) if schema.collections else []
+        )
         schema_preview = {
             "database_name": schema.name,
             "collection_count": len(collections_list_items),
@@ -178,7 +283,7 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
@@ -187,12 +292,14 @@ async def test_mongodb_connection(url: str, timeout: int = 10) -> ConnectionTest
         if adapter:
             try:
                 await adapter.disconnect()
-            except:
+            except Exception:
                 pass
         error_msg = str(e)
         import logging
+
         logging.error(
-            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True)
+            f"MongoDB connection error for URL {url}: {error_msg}", exc_info=True
+        )
         # Sanitize error messages
         if "authentication" in error_msg.lower():
             error_msg = "Authentication failed - check username and password"

@@ -36,10 +36,10 @@ class UserCreate(BaseModel):
     """Request model for user registration."""
 
     email: EmailStr = Field(..., description="User email address")
-    password: str = Field(..., min_length=8,
-                          description="Password (min 8 characters)")
-    name: str = Field(..., min_length=1, max_length=100,
-                      description="Account/organization name")
+    password: str = Field(..., min_length=8, description="Password (min 8 characters)")
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Account/organization name"
+    )
     full_name: Optional[str] = Field(None, description="User's full name")
 
     model_config = {
@@ -125,8 +125,9 @@ class PasswordReset(BaseModel):
 
     email: EmailStr = Field(..., description="User email address")
     otp: str = Field(..., description="6-digit OTP code")
-    new_password: str = Field(..., min_length=8,
-                              description="New password (min 8 characters)")
+    new_password: str = Field(
+        ..., min_length=8, description="New password (min 8 characters)"
+    )
 
     @field_validator("otp")
     @classmethod
@@ -154,8 +155,9 @@ class PasswordChange(BaseModel):
     """Request model for changing password (when logged in)."""
 
     current_password: str = Field(..., description="Current password")
-    new_password: str = Field(..., min_length=8,
-                              description="New password (min 8 characters)")
+    new_password: str = Field(
+        ..., min_length=8, description="New password (min 8 characters)"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -247,7 +249,9 @@ class TokenResponse(BaseModel):
 class PasswordResetResponse(BaseModel):
     """Response model for password reset request."""
 
-    message: str = "If an account with that email exists, a password reset link has been sent."
+    message: str = (
+        "If an account with that email exists, a password reset link has been sent."
+    )
 
     model_config = {
         "json_schema_extra": {

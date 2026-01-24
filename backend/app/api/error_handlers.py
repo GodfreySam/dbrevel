@@ -40,7 +40,9 @@ async def invalid_query_error_handler(request: Request, exc: InvalidQueryError):
     )
 
 
-async def missing_collection_error_handler(request: Request, exc: MissingCollectionError):
+async def missing_collection_error_handler(
+    request: Request, exc: MissingCollectionError
+):
     """Handler for missing collection errors."""
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -80,7 +82,9 @@ async def invalid_json_error_handler(request: Request, exc: InvalidJSONError):
     )
 
 
-async def invalid_query_plan_error_handler(request: Request, exc: InvalidQueryPlanError):
+async def invalid_query_plan_error_handler(
+    request: Request, exc: InvalidQueryPlanError
+):
     """Handler for invalid query plan errors."""
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -88,7 +92,9 @@ async def invalid_query_plan_error_handler(request: Request, exc: InvalidQueryPl
     )
 
 
-async def missing_byo_api_key_error_handler(request: Request, exc: MissingBYOApiKeyError):
+async def missing_byo_api_key_error_handler(
+    request: Request, exc: MissingBYOApiKeyError
+):
     """Handler for missing BYO API key errors."""
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,

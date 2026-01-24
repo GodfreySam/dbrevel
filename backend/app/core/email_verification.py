@@ -20,10 +20,13 @@ class EmailVerificationStore:
         """Ensure MongoDB connection is established."""
         if self.client is None:
             from motor.motor_asyncio import AsyncIOMotorClient
+
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
             # Create index on expiration for cleanup
-            await self.db.email_verification_otps.create_index("expires_at", expireAfterSeconds=0)
+            await self.db.email_verification_otps.create_index(
+                "expires_at", expireAfterSeconds=0
+            )
             await self.db.email_verification_otps.create_index("email")
             await self.db.email_verification_otps.create_index("user_id")
 
@@ -46,11 +49,12 @@ class EmailVerificationStore:
             OTP code string (6 digits)
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         # Invalidate any existing OTPs for this user
         await self.db.email_verification_otps.update_many(
             {"user_id": user_id, "used": False},
-            {"$set": {"used": True, "used_at": datetime.utcnow()}}
+            {"$set": {"used": True, "used_at": datetime.utcnow()}},
         )
 
         # Generate OTP
@@ -58,15 +62,17 @@ class EmailVerificationStore:
         expires_at = datetime.utcnow() + timedelta(minutes=expires_in_minutes)
 
         # Store OTP
-        await self.db.email_verification_otps.insert_one({
-            "otp": otp,
-            "user_id": user_id,
-            "email": email,
-            "created_at": datetime.utcnow(),
-            "expires_at": expires_at,
-            "used": False,
-            "attempts": 0,  # Track verification attempts
-        })
+        await self.db.email_verification_otps.insert_one(
+            {
+                "otp": otp,
+                "user_id": user_id,
+                "email": email,
+                "created_at": datetime.utcnow(),
+                "expires_at": expires_at,
+                "used": False,
+                "attempts": 0,  # Track verification attempts
+            }
+        )
 
         return otp
 
@@ -82,19 +88,21 @@ class EmailVerificationStore:
             OTP document if valid, None otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
-        otp_doc = await self.db.email_verification_otps.find_one({
-            "email": email,
-            "otp": otp,
-            "used": False,
-            "expires_at": {"$gt": datetime.utcnow()},
-        })
+        otp_doc = await self.db.email_verification_otps.find_one(
+            {
+                "email": email,
+                "otp": otp,
+                "used": False,
+                "expires_at": {"$gt": datetime.utcnow()},
+            }
+        )
 
         if not otp_doc:
             # Increment attempts for rate limiting (even if OTP not found)
             await self.db.email_verification_otps.update_many(
-                {"email": email, "used": False},
-                {"$inc": {"attempts": 1}}
+                {"email": email, "used": False}, {"$inc": {"attempts": 1}}
             )
             return None
 
@@ -103,7 +111,7 @@ class EmailVerificationStore:
             # Mark as used to prevent further attempts
             await self.db.email_verification_otps.update_one(
                 {"_id": otp_doc["_id"]},
-                {"$set": {"used": True, "used_at": datetime.utcnow()}}
+                {"$set": {"used": True, "used_at": datetime.utcnow()}},
             )
             return None
 
@@ -121,10 +129,11 @@ class EmailVerificationStore:
             True if OTP was found and marked, False otherwise
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.email_verification_otps.update_one(
             {"email": email, "otp": otp},
-            {"$set": {"used": True, "used_at": datetime.utcnow()}}
+            {"$set": {"used": True, "used_at": datetime.utcnow()}},
         )
 
         return result.modified_count > 0
@@ -140,10 +149,11 @@ class EmailVerificationStore:
             Number of OTPs invalidated
         """
         await self._ensure_connected()
+        assert self.db is not None  # Type assertion for mypy
 
         result = await self.db.email_verification_otps.update_many(
             {"user_id": user_id, "used": False},
-            {"$set": {"used": True, "used_at": datetime.utcnow()}}
+            {"$set": {"used": True, "used_at": datetime.utcnow()}},
         )
 
         return result.modified_count

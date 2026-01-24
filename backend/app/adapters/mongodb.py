@@ -1,18 +1,20 @@
 """MongoDB database adapter"""
+
 import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional
 
 from app.adapters.base import DatabaseAdapter
+from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import DatabaseSchema
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 # MongoDB collection name validation pattern
 # MongoDB collection names must not contain: \0, $, and must not start with system.
-VALID_COLLECTION_NAME = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+VALID_COLLECTION_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +25,7 @@ class MongoDBAdapter(DatabaseAdapter):
         self.connection_string = connection_string
         self.database_name = database
         self.client: Optional[AsyncIOMotorClient] = None
-        self.db = None
+        self.db: Optional[AsyncIOMotorDatabase[Any]] = None
         self._schema: Optional[DatabaseSchema] = None
 
     async def connect(self) -> None:
@@ -35,8 +37,8 @@ class MongoDBAdapter(DatabaseAdapter):
             serverSelectionTimeoutMS=10000,  # 10 second timeout for server selection
             connectTimeoutMS=10000,  # 10 second connection timeout
             socketTimeoutMS=30000,  # 30 second socket timeout
-            maxPoolSize=10,  # Maximum connections in pool
-            minPoolSize=1,  # Minimum connections in pool
+            maxPoolSize=settings.MONGODB_POOL_MAX_SIZE,  # Maximum connections in pool
+            minPoolSize=settings.MONGODB_POOL_MIN_SIZE,  # Minimum connections in pool
             maxIdleTimeMS=45000,  # Close idle connections after 45s
             retryWrites=True,  # Retry writes on transient failures
             retryReads=True,  # Retry reads on transient failures
@@ -45,24 +47,33 @@ class MongoDBAdapter(DatabaseAdapter):
 
         # Verify connection with a lightweight ping
         try:
-            await self.client.admin.command('ping')
+            await self.client.admin.command("ping")
             logger.info(
-                f"MongoDB connected to database '{self.database_name}'")
+                f"MongoDB connected to database '{self.database_name}' (pool: min={settings.MONGODB_POOL_MIN_SIZE}, max={settings.MONGODB_POOL_MAX_SIZE})"
+            )
         except Exception as e:
-            logger.warning(
-                f"MongoDB ping failed: {e}. Connection may still work.")
+            logger.warning(f"MongoDB ping failed: {e}. Connection may still work.")
             # Don't raise - let actual operations handle errors
 
     async def disconnect(self) -> None:
         """Close MongoDB connection"""
         if self.client:
-            self.client.close()
+            try:
+                # Close the client (this also stops background tasks)
+                self.client.close()
+                # Give it a moment to clean up background tasks
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error closing MongoDB client: {e}")
 
     @with_retry(
         max_retries=3,
         initial_delay=1.0,
         max_delay=5.0,
-        exceptions=(ConnectionFailure, ServerSelectionTimeoutError, Exception)
+        exceptions=(ConnectionFailure, ServerSelectionTimeoutError, Exception),
     )
     async def introspect_schema(self) -> DatabaseSchema:
         """Introspect MongoDB schema by sampling documents with retry logic"""
@@ -71,14 +82,15 @@ class MongoDBAdapter(DatabaseAdapter):
             return self._schema
 
         # Verify connection before introspection
+        assert self.client is not None  # Type assertion for mypy
         try:
-            await self.client.admin.command('ping')
+            await self.client.admin.command("ping")
         except Exception as e:
-            logger.warning(
-                f"MongoDB connection check failed before introspection: {e}")
+            logger.warning(f"MongoDB connection check failed before introspection: {e}")
             # Try to reconnect
             await self.connect()
 
+        assert self.db is not None  # Type assertion for mypy
         collections = await self.db.list_collection_names()
 
         schema_data = {}
@@ -89,11 +101,14 @@ class MongoDBAdapter(DatabaseAdapter):
 
                 # Sample documents to infer schema (reduced sample size for faster introspection)
                 sample_size = 50  # Reduced from 100 for faster startup
-                documents = await collection.find().limit(sample_size).to_list(length=sample_size)
+                documents = (
+                    await collection.find()
+                    .limit(sample_size)
+                    .to_list(length=sample_size)
+                )
 
                 if not documents:
-                    schema_data[coll_name] = {
-                        "fields": {}, "count": 0, "indexes": []}
+                    schema_data[coll_name] = {"fields": {}, "count": 0, "indexes": []}
                     continue
 
                 # Infer fields from samples
@@ -104,13 +119,16 @@ class MongoDBAdapter(DatabaseAdapter):
                             fields[key] = {
                                 "type": type(value).__name__,
                                 "nullable": False,
-                                "examples": []
+                                "examples": [],
                             }
-                        if len(fields[key]["examples"]) < 3:
-                            # Truncate long values
-                            example_str = str(value)[:50]
-                            if example_str not in fields[key]["examples"]:
-                                fields[key]["examples"].append(example_str)
+                        field_info = fields[key]
+                        if isinstance(field_info, dict):
+                            examples = field_info.get("examples", [])
+                            if isinstance(examples, list) and len(examples) < 3:
+                                # Truncate long values
+                                example_str = str(value)[:50]
+                                if example_str not in examples:
+                                    examples.append(example_str)
 
                 # Get document count (with timeout)
                 count = await collection.count_documents({})
@@ -119,42 +137,39 @@ class MongoDBAdapter(DatabaseAdapter):
                 indexes = []
                 try:
                     async for idx in collection.list_indexes():
-                        indexes.append(str(idx.get('name', '')))
+                        indexes.append(str(idx.get("name", "")))
                 except Exception as e:
                     logger.warning(
-                        f"Failed to get indexes for collection {coll_name}: {e}")
+                        f"Failed to get indexes for collection {coll_name}: {e}"
+                    )
 
                 schema_data[coll_name] = {
                     "fields": fields,
                     "count": count,
-                    "indexes": indexes
+                    "indexes": indexes,
                 }
             except Exception as e:
-                logger.warning(
-                    f"Failed to introspect collection {coll_name}: {e}")
+                logger.warning(f"Failed to introspect collection {coll_name}: {e}")
                 # Continue with other collections even if one fails
-                schema_data[coll_name] = {
-                    "fields": {}, "count": 0, "indexes": []}
+                schema_data[coll_name] = {"fields": {}, "count": 0, "indexes": []}
 
         self._schema = DatabaseSchema(
-            type="mongodb",
-            name=self.database_name,
-            collections=schema_data
+            type="mongodb", name=self.database_name, collections=schema_data
         )
 
         return self._schema
 
     async def execute(
         self,
-        pipeline: List[Dict[str, Any]],
-        collection: str = None,
-        max_docs: int = 10000
+        query: Any,  # For MongoDB, this is a pipeline
+        params: List[Any] | None = None,  # For MongoDB, this is collection name
+        max_docs: int = 10000,
     ) -> List[Dict[str, Any]]:
         """Execute MongoDB aggregation pipeline with result size limits
 
         Args:
-            pipeline: MongoDB aggregation pipeline
-            collection: Collection name
+            query: MongoDB aggregation pipeline (list of dicts)
+            params: Collection name (optional, can be extracted from pipeline)
             max_docs: Maximum number of documents to return (default: 10000)
 
         Returns:
@@ -163,7 +178,11 @@ class MongoDBAdapter(DatabaseAdapter):
         Raises:
             ValueError: If collection name is invalid or missing
         """
+        # Convert query to pipeline (for MongoDB, query is a pipeline)
+        pipeline: List[Dict[str, Any]] = query if isinstance(query, list) else []
+        collection: str | None = params[0] if params and len(params) > 0 else None
 
+        assert self.db is not None  # Type assertion for mypy
         if collection:
             # Validate collection name to prevent NoSQL injection
             if not self._validate_collection_name(collection):
@@ -174,23 +193,28 @@ class MongoDBAdapter(DatabaseAdapter):
             coll = self.db[collection]
         else:
             # Try to extract collection from pipeline
-            if pipeline and 'collection' in pipeline[0]:
-                collection = pipeline[0]['collection']
+            if (
+                pipeline
+                and isinstance(pipeline[0], dict)
+                and "collection" in pipeline[0]
+            ):
+                collection = pipeline[0]["collection"]
                 if not self._validate_collection_name(collection):
                     raise ValueError(
-                        f"Invalid collection name in pipeline: {collection}")
+                        f"Invalid collection name in pipeline: {collection}"
+                    )
                 coll = self.db[collection]
-                pipeline = pipeline[0].get('stages', pipeline)
+                pipeline = pipeline[0].get("stages", pipeline)
             else:
-                raise ValueError(
-                    "Collection name required for MongoDB queries")
+                raise ValueError("Collection name required for MongoDB queries")
 
         # Add $limit stage if not present to prevent memory issues
-        has_limit = any('$limit' in stage for stage in pipeline)
+        has_limit = any(
+            "$limit" in stage for stage in pipeline if isinstance(stage, dict)
+        )
         if not has_limit:
-            pipeline.append({'$limit': max_docs})
-            logger.debug(
-                f"Added $limit {max_docs} to pipeline without explicit limit")
+            pipeline.append({"$limit": max_docs})
+            logger.debug(f"Added $limit {max_docs} to pipeline without explicit limit")
 
         cursor = coll.aggregate(pipeline)
         results = await cursor.to_list(length=max_docs)
@@ -204,8 +228,8 @@ class MongoDBAdapter(DatabaseAdapter):
 
         # Convert ObjectId to string for JSON serialization
         for doc in results:
-            if '_id' in doc:
-                doc['_id'] = str(doc['_id'])
+            if "_id" in doc:
+                doc["_id"] = str(doc["_id"])
 
         return results
 
@@ -222,10 +246,10 @@ class MongoDBAdapter(DatabaseAdapter):
             return False
 
         # Check for dangerous patterns
-        if collection_name.startswith('system.'):
+        if collection_name.startswith("system."):
             return False
 
-        if '\0' in collection_name or '$' in collection_name:
+        if "\0" in collection_name or "$" in collection_name:
             return False
 
         # Check against whitelist pattern
@@ -248,15 +272,18 @@ class MongoDBAdapter(DatabaseAdapter):
         for attempt in range(3):
             try:
                 # Use timeout to prevent hanging on slow connections
-                await asyncio.wait_for(
-                    self.client.admin.command('ping'),
-                    timeout=5.0
-                )
+                await asyncio.wait_for(self.client.admin.command("ping"), timeout=5.0)
                 return True
-            except (asyncio.TimeoutError, ConnectionFailure, ServerSelectionTimeoutError, Exception) as e:
+            except (
+                asyncio.TimeoutError,
+                ConnectionFailure,
+                ServerSelectionTimeoutError,
+                Exception,
+            ) as e:
                 if attempt == 2:  # Last attempt
                     logger.warning(
-                        f"MongoDB health check failed after {attempt + 1} attempts: {e}")
+                        f"MongoDB health check failed after {attempt + 1} attempts: {e}"
+                    )
                     return False
                 # Exponential backoff: 0.5s, 1s, 1.5s
                 await asyncio.sleep(0.5 * (attempt + 1))

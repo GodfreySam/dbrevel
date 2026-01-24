@@ -247,8 +247,33 @@ export default function Dashboard() {
 		});
 	};
 
+	// Function to refetch project details
+	const refetchProjectDetail = async (projectId: string) => {
+		if (!token) return;
+		
+		try {
+			const detail = await apiFetchJson<ProjectDetail>(
+				`/projects/${projectId}`,
+				{
+					headers: {
+						Authorization: `Bearer ${token}`,
+					},
+				},
+				logout,
+			);
+			setProjectDetails((prev) => {
+				const newMap = new Map(prev);
+				newMap.set(projectId, detail);
+				return newMap;
+			});
+		} catch (err) {
+			console.error("Failed to refetch project details:", err);
+			// Don't remove from cache on error - keep existing detail
+		}
+	};
+
 	// Function to handle API key updates (used for reveal and rotation)
-	const handleApiKeyUpdated = (projectId: string, newApiKey: string) => {
+	const handleApiKeyUpdated = async (projectId: string, newApiKey: string) => {
 		// Update API key in state
 		setProjectApiKeys((prev) => {
 			const newMap = new Map(prev);
@@ -270,8 +295,12 @@ export default function Dashboard() {
 			"project_api_keys",
 			JSON.stringify(Array.from(keysMap.entries())),
 		);
-		// Invalidate project details cache to force refresh
-		invalidateProjectCache(projectId);
+		
+		// If project is currently expanded, refetch details to keep UI in sync
+		// (API key is stored separately, but we want to ensure detail is fresh)
+		if (expandedProjectId === projectId) {
+			await refetchProjectDetail(projectId);
+		}
 	};
 
 	return (
@@ -368,7 +397,11 @@ export default function Dashboard() {
 						projectId={editingProjectId}
 						onClose={() => setEditingProjectId(null)}
 						onSuccess={() => {
+							const editedId = editingProjectId;
 							setEditingProjectId(null);
+							// Invalidate cache for edited project
+							invalidateProjectCache(editedId);
+							// Reload projects list
 							loadProjects();
 						}}
 					/>

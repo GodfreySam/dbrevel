@@ -5,12 +5,21 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from app.adapters.factory import adapter_factory
-from app.core.exceptions import (InvalidQueryError, MissingCollectionError,
-                                 QueryValidationError, UnsupportedQueryError)
+from app.core.exceptions import (
+    InvalidQueryError,
+    MissingCollectionError,
+    QueryValidationError,
+    UnsupportedQueryError,
+)
 from app.core.gemini import build_gemini_engine
 from app.core.usage import record_usage
-from app.models.query import (QueryMetadata, QueryPlan, QueryRequest,
-                              QueryResult, SecurityContext)
+from app.models.query import (
+    QueryMetadata,
+    QueryPlan,
+    QueryRequest,
+    QueryResult,
+    SecurityContext,
+)
 
 
 class QueryService:
@@ -34,9 +43,7 @@ class QueryService:
             # 2. Generate query plan using Gemini
             gemini_engine = build_gemini_engine(tenant)
             plan = await gemini_engine.generate_query_plan(
-                intent=request.intent,
-                schemas=schemas,
-                security_ctx=security_ctx
+                intent=request.intent, schemas=schemas, security_ctx=security_ctx
             )
 
             # 3. Dry run mode - just return the plan (no execution)
@@ -48,9 +55,10 @@ class QueryService:
                 schema = schemas[query.database]
                 validation = await gemini_engine.validate_query(query, schema)
 
-                if not validation.get('safe', True):
+                if not validation.get("safe", True):
                     raise QueryValidationError(
-                        f"Unsafe query detected: {validation.get('issues', [])}")
+                        f"Unsafe query detected: {validation.get('issues', [])}"
+                    )
 
             # 5. Execute queries
             if len(plan.queries) == 1:
@@ -93,9 +101,7 @@ class QueryService:
             print(f"Query execution error [{trace_id}]: {e}")
             raise
 
-    async def _execute_single_db(
-        self, plan: QueryPlan, tenant
-    ) -> List[Dict[str, Any]]:
+    async def _execute_single_db(self, plan: QueryPlan, tenant) -> List[Dict[str, Any]]:
         """Execute query against single database"""
 
         query_obj = plan.queries[0]
@@ -109,23 +115,27 @@ class QueryService:
             # MongoDB queries must have a collection specified
             if not isinstance(query_obj.query, list):
                 raise InvalidQueryError(
-                    "Invalid MongoDB query format: query must be a list (pipeline)")
+                    "Invalid MongoDB query format: query must be a list (pipeline)"
+                )
 
             # Use collection from query plan, or try to infer from schema
             collection = query_obj.collection
             if not collection:
                 raise MissingCollectionError(
-                    "Collection name required for MongoDB queries. The query plan must include a 'collection' field.")
+                    "Collection name required for MongoDB queries. The query plan must include a 'collection' field."
+                )
 
-            results = await adapter.execute(query_obj.query, collection)
+            results = await adapter.execute(
+                query_obj.query, [collection] if collection else None
+            )
         else:
-            raise UnsupportedQueryError(f"Unsupported query type: {query_obj.query_type}")
+            raise UnsupportedQueryError(
+                f"Unsupported query type: {query_obj.query_type}"
+            )
 
         return results
 
-    async def _execute_cross_db(
-        self, plan: QueryPlan, tenant
-    ) -> List[Dict[str, Any]]:
+    async def _execute_cross_db(self, plan: QueryPlan, tenant) -> List[Dict[str, Any]]:
         """Execute and join queries across multiple databases"""
 
         # Execute all queries in parallel
@@ -139,11 +149,16 @@ class QueryService:
                 # MongoDB queries require collection name
                 if not query_obj.collection:
                     raise MissingCollectionError(
-                        f"Collection name required for MongoDB query on database '{query_obj.database}'")
-                task = adapter.execute(query_obj.query, query_obj.collection)
+                        f"Collection name required for MongoDB query on database '{query_obj.database}'"
+                    )
+                task = adapter.execute(
+                    query_obj.query,
+                    [query_obj.collection] if query_obj.collection else None,
+                )
             else:
                 raise UnsupportedQueryError(
-                    f"Unsupported query type for cross-db query: {query_obj.query_type}")
+                    f"Unsupported query type for cross-db query: {query_obj.query_type}"
+                )
 
             tasks.append(task)
 
@@ -162,9 +177,7 @@ class QueryService:
         return merged
 
     def _apply_field_masking(
-        self,
-        results: List[Dict[str, Any]],
-        security_ctx: SecurityContext
+        self, results: List[Dict[str, Any]], security_ctx: SecurityContext
     ) -> List[Dict[str, Any]]:
         """Apply field-level masking based on security context"""
 
@@ -185,11 +198,7 @@ class QueryService:
 
         return masked_results
 
-    def _build_dry_run_response(
-        self,
-        plan: QueryPlan,
-        trace_id: str
-    ) -> QueryResult:
+    def _build_dry_run_response(self, plan: QueryPlan, trace_id: str) -> QueryResult:
         """Build response for dry-run mode"""
 
         metadata = QueryMetadata(

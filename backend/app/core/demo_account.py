@@ -7,7 +7,7 @@ import app.core.account_store as account_store_module
 import asyncpg
 from app.core.accounts import AccountConfig
 from app.core.config import settings
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Demo project configuration
 DEMO_PROJECT_API_KEY = "dbrevel_demo_project_key"
@@ -159,6 +159,7 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
     # Test MongoDB
     try:
         from pymongo import MongoClient
+
         client: MongoClient = MongoClient(mongodb_url, serverSelectionTimeoutMS=5000)
         client.admin.command("ping")
         client.close()
@@ -176,9 +177,6 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         from datetime import datetime, timedelta
         from urllib.parse import urlparse
 
-        # Always use motor (should be available as it's a dependency)
-        from motor.motor_asyncio import AsyncIOMotorClient
-
         # Extract database name from URL
         # URL format: mongodb://host:port/database_name or mongodb://host:port/database_name?query
         parsed = urlparse(mongodb_url)
@@ -195,7 +193,6 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         )
 
         # Use motor (async) - MongoDB client will use the database from URL if specified
-        from motor.motor_asyncio import AsyncIOMotorClient
         client: AsyncIOMotorClient = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
         db = client[db_name]
 

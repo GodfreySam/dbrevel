@@ -42,16 +42,16 @@ class UserStore:
         logger = logging.getLogger(__name__)
         
         if self.client is None:
-            logger.info(f"[UserStore] Creating new MongoDB client connection...")
+            logger.info("[UserStore] Creating new MongoDB client connection...")
             from motor.motor_asyncio import AsyncIOMotorClient
             self.client = AsyncIOMotorClient(self.mongo_url)
             self.db = self.client[self.db_name]
-            logger.info(f"[UserStore] MongoDB client created, creating indexes...")
+            logger.info("[UserStore] MongoDB client created, creating indexes...")
             # Create indexes with error handling - don't fail if MongoDB has partial connectivity
             try:
                 await self.db.users.create_index("email", unique=True)
                 await self.db.users.create_index("account_id")
-                logger.info(f"[UserStore] MongoDB indexes created")
+                logger.info("[UserStore] MongoDB indexes created")
             except Exception as e:
                 # Log warning but don't fail - indexes may already exist or will be created later
                 error_msg = _truncate_error_message(e)
@@ -60,7 +60,7 @@ class UserStore:
                     "The app will continue, but some operations may be slower until indexes are created."
                 )
         else:
-            logger.debug(f"[UserStore] MongoDB client already exists")
+            logger.debug("[UserStore] MongoDB client already exists")
 
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID (MongoDB _id)."""
@@ -68,9 +68,9 @@ class UserStore:
         logger = logging.getLogger(__name__)
         logger.info(f"[UserStore] get_by_id called with user_id={user_id}")
         
-        logger.info(f"[UserStore] Ensuring MongoDB connection...")
+        logger.info("[UserStore] Ensuring MongoDB connection...")
         await self._ensure_connected()
-        logger.info(f"[UserStore] MongoDB connection ensured")
+        logger.info("[UserStore] MongoDB connection ensured")
         
         try:
             logger.info(f"[UserStore] Querying MongoDB for user _id={user_id}")

@@ -9,11 +9,9 @@ Requires Python 3.10+.
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-import orjson
 from app.core.accounts import AccountConfig
-from app.core.cache import query_plan_cache
 from app.core.config import settings
 from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
                                  InvalidJSONError, InvalidQueryPlanError,
@@ -426,7 +424,7 @@ Return JSON:
                         decoder = json.JSONDecoder()
                         plan_data, idx = decoder.raw_decode(json_candidate)
                         logger.info(
-                            f"Successfully parsed JSON using aggressive extraction")
+                            "Successfully parsed JSON using aggressive extraction")
                         return plan_data
             except Exception as inner_e:
                 logger.error(f"Aggressive extraction also failed: {inner_e}")

@@ -423,12 +423,12 @@ async def ensure_demo_account() -> bool:
         tenant_mongo_url = demo_mongo_url  # Default to constructed URL
         if final_project and final_project.mongodb_url:
             tenant_mongo_url = final_project.mongodb_url
-            print(f"   Using project's configured MongoDB URL for seeding")
+            print("   Using project's configured MongoDB URL for seeding")
 
         # Always try to seed MongoDB demo data (database will be created on first write if it doesn't exist)
         # Only seed if the database is empty to avoid overwriting existing data
         # Try seeding even if test_demo_databases failed (database might not exist yet)
-        print(f"🌱 Checking and seeding demo MongoDB database...")
+        print("🌱 Checking and seeding demo MongoDB database...")
         try:
             # Decrypt the MongoDB URL before using it (tenant store encrypts URLs for security)
             from app.core.encryption import decrypt_database_url
@@ -440,16 +440,16 @@ async def ensure_demo_account() -> bool:
                 if tenant_mongo_url.startswith(("mongodb://", "mongodb+srv://")):
                     # Already plaintext, use as-is
                     decrypted_mongo_url = tenant_mongo_url
-                    print(f"   Using plaintext MongoDB URL (decryption skipped)")
+                    print("   Using plaintext MongoDB URL (decryption skipped)")
                 else:
                     raise ValueError(
                         f"Failed to decrypt MongoDB URL: {decrypt_error}")
 
             seeded = await _seed_demo_mongodb(decrypted_mongo_url)
             if seeded:
-                print(f"✓ Seeded demo MongoDB database with sample data")
+                print("✓ Seeded demo MongoDB database with sample data")
             else:
-                print(f"ℹ️  Demo MongoDB database already contains data (skipping seed)")
+                print("ℹ️  Demo MongoDB database already contains data (skipping seed)")
         except Exception as e:
             import traceback
             error_msg = _truncate_error_message(e)

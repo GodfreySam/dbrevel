@@ -1,6 +1,5 @@
 """Prometheus metrics for monitoring application performance and health."""
 import time
-from typing import Optional
 
 from fastapi import Request, Response
 from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Gauge, Histogram,
@@ -111,7 +110,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             ).observe(duration)
 
             return response
-        except Exception as e:
+        except Exception:
             # Record error
             duration = time.time() - start_time
             http_requests_total.labels(

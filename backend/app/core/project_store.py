@@ -6,10 +6,8 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from app.core.account_keys import (generate_account_key, hash_api_key,
-                                   verify_api_key)
-from app.core.encryption import (decrypt_database_url, encrypt_database_url,
-                                 mask_database_url)
+from app.core.account_keys import hash_api_key
+from app.core.encryption import encrypt_database_url
 from app.models.project import DatabaseConfig, Project
 
 
@@ -152,7 +150,7 @@ class MongoDBProjectStore(ProjectStore):
                 f"✓ Found project via direct lookup: {project_doc['name']} (ID: {project_doc['project_id']})")
             return self._doc_to_project(project_doc)
 
-        logger.info(f"  Direct lookup failed, trying hash-based lookup...")
+        logger.info("  Direct lookup failed, trying hash-based lookup...")
 
         # Hash-based lookup
         api_key_hash = hash_api_key(api_key)

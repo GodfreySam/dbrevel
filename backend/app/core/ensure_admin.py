@@ -2,7 +2,6 @@
 
 from app.core.account_keys import generate_account_key
 from app.core.account_store import get_account_store
-from app.core.auth import hash_password
 from app.core.user_store import get_user_store
 from bson import ObjectId
 
@@ -66,7 +65,7 @@ async def ensure_admin_user():
     )
 
     if not admin_account or not admin_account.id:
-        print(f"✗ Failed to create account for admin user")
+        print("✗ Failed to create account for admin user")
         return
 
     # Create admin user
@@ -84,9 +83,9 @@ async def ensure_admin_user():
         )
 
         print(f"✓ Created admin user: {admin_email}")
-        print(f"  - Role: admin")
-        print(f"  - Email verified: True")
-        print(f"  - OTP login enabled at /admin/login")
+        print("  - Role: admin")
+        print("  - Email verified: True")
+        print("  - OTP login enabled at /admin/login")
 
     except Exception as e:
         error_msg = str(e)

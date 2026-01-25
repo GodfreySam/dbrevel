@@ -58,7 +58,9 @@ else:
                     "rate limiting using in-memory backend (single instance only)."
                 )
             else:
-                logger.info("Rate limiting using in-memory backend (Redis not configured)")
+                logger.info(
+                    "Rate limiting using in-memory backend (Redis not configured)"
+                )
             limiter = Limiter(
                 key_func=get_remote_address,
                 default_limits=["1000/hour"],

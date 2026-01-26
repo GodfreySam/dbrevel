@@ -4,7 +4,6 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from app.adapters.mongodb import MongoDBAdapter
-from app.adapters.postgres import PostgresAdapter
 
 
 class ConnectionTestResult:
@@ -46,11 +45,12 @@ async def test_postgres_connection_lightweight(
     Returns:
         ConnectionTestResult with success status and minimal schema preview
     """
+    import asyncpg
     import logging
 
     logger = logging.getLogger(__name__)
-    adapter = None
-    connect_timeout = min(timeout, 25)  # Allow time for Neon/serverless DB cold starts
+    conn = None
+    connect_timeout = min(timeout, 25)
     try:
         safe_url = url.split("@")[-1] if "@" in url else url
         logger.info(f"Testing PostgreSQL connection to: ...@{safe_url}")
@@ -64,28 +64,16 @@ async def test_postgres_connection_lightweight(
         except Exception:
             pass
 
-        adapter = PostgresAdapter(url)
-        try:
-            await asyncio.wait_for(adapter.connect(), timeout=connect_timeout)
-        except asyncio.TimeoutError:
-            logger.warning(f"PostgreSQL connection timed out after {connect_timeout}s")
-            raise
-        except Exception as e:
-            logger.warning(f"PostgreSQL connection failed: {str(e)}")
-            raise
+        # Use a single direct connection instead of a pool to avoid
+        # exhausting connection pooler slots (Neon, PgBouncer, etc.)
+        conn = await asyncio.wait_for(
+            asyncpg.connect(url, statement_cache_size=0),
+            timeout=connect_timeout,
+        )
 
-        assert adapter.pool is not None  # Type assertion for mypy
-        try:
-            async with adapter.pool.acquire() as conn:
-                result = await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=10.0)
-                if result != 1:
-                    raise Exception("Unexpected query result")
-        except asyncio.TimeoutError:
-            logger.warning("PostgreSQL query test timed out")
-            raise
-        except Exception as e:
-            logger.warning(f"PostgreSQL query test failed: {str(e)}")
-            raise
+        result = await asyncio.wait_for(conn.fetchval("SELECT 1"), timeout=10.0)
+        if result != 1:
+            raise Exception("Unexpected query result")
 
         logger.info("✓ PostgreSQL connection test successful")
         schema_preview: Dict[str, Any] = {
@@ -93,22 +81,22 @@ async def test_postgres_connection_lightweight(
             "table_count": None,
             "tables": [],
         }
-        await adapter.disconnect()
+        await conn.close()
         return ConnectionTestResult(success=True, schema_preview=schema_preview)
 
     except asyncio.TimeoutError:
-        if adapter:
+        if conn:
             try:
-                await adapter.disconnect()
+                await conn.close()
             except Exception:
                 pass
         return ConnectionTestResult(
             success=False, error="Connection timeout - database may be unreachable"
         )
     except Exception as e:
-        if adapter:
+        if conn:
             try:
-                await adapter.disconnect()
+                await conn.close()
             except Exception:
                 pass
         error_msg = str(e)

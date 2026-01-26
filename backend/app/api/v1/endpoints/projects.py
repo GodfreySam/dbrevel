@@ -1,5 +1,6 @@
 """Project management endpoints for users."""
 
+import asyncio
 from datetime import datetime
 from typing import List
 
@@ -7,7 +8,6 @@ from app.core.account_keys import generate_account_key
 from app.core.auth import get_current_user
 from app.core.encryption import (
     decrypt_database_url,
-    encrypt_database_url,
     mask_database_url,
 )
 from app.core.project_store import generate_project_id, get_project_store
@@ -71,17 +71,13 @@ async def create_project(
             elif db_type == "mongodb" and db_url:
                 mongodb_url = db_url
 
-    # Encrypt database URLs at the API layer
-    encrypted_postgres_url = encrypt_database_url(postgres_url) if postgres_url else ""
-    encrypted_mongodb_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
-
-    # Create project (store still uses old format, but we'll add databases field in future)
+    # Create project — store handles encryption
     project = await project_store.create_project_async(
         name=request.name,
         account_id=current_user.account_id,
         api_key=api_key,
-        postgres_url=encrypted_postgres_url,
-        mongodb_url=encrypted_mongodb_url,
+        postgres_url=postgres_url or "",
+        mongodb_url=mongodb_url or "",
         project_id=project_id,
     )
 
@@ -283,15 +279,11 @@ async def update_project(
             elif db_type == "mongodb" and db_url:
                 mongodb_url = db_url
 
-    # Update with extracted/legacy URLs
+    # Pass plaintext URLs — store handles encryption
     if postgres_url is not None:
-        updates["postgres_url"] = (
-            encrypt_database_url(postgres_url) if postgres_url else ""
-        )
+        updates["postgres_url"] = postgres_url
     if mongodb_url is not None:
-        updates["mongodb_url"] = (
-            encrypt_database_url(mongodb_url) if mongodb_url else ""
-        )
+        updates["mongodb_url"] = mongodb_url
 
     updated_project = await project_store.update_project_async(project_id, **updates)
 
@@ -562,7 +554,8 @@ async def test_database_connections(
 
     results = ProjectConnectionTestResponse()
 
-    if postgres_url:
+    # Run database tests in parallel to stay within frontend timeout
+    async def _test_postgres():
         safe_url = postgres_url.split("@")[-1] if "@" in postgres_url else postgres_url
         logger.info(
             "Testing PostgreSQL connection for project %s: ...@%s",
@@ -577,16 +570,24 @@ async def test_database_connections(
             logger.error("PostgreSQL test failed: %s", e, exc_info=True)
             results.postgres = {"success": False, "error": str(e)}
 
-    if mongodb_url:
+    async def _test_mongodb():
         logger.info("Testing MongoDB connection")
         try:
-            # Use lightweight test for consistency with PostgreSQL (fast feedback)
             mongo_result = await test_mongodb_connection_lightweight(mongodb_url)
             results.mongodb = mongo_result.to_dict()
             logger.info("MongoDB test completed: success=%s", mongo_result.success)
         except Exception as e:
             logger.error("MongoDB test failed: %s", e, exc_info=True)
             results.mongodb = {"success": False, "error": str(e)}
+
+    tasks = []
+    if postgres_url:
+        tasks.append(_test_postgres())
+    if mongodb_url:
+        tasks.append(_test_mongodb())
+
+    if tasks:
+        await asyncio.gather(*tasks)
 
     if not postgres_url and not mongodb_url:
         logger.warning("No database URLs available to test")

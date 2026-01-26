@@ -228,7 +228,8 @@ class MongoDBProjectStore(ProjectStore):
         if not project_id:
             project_id = generate_project_id()
 
-        # Encrypt database URLs
+        # Encrypt database URLs (idempotent — already-encrypted URLs are returned as-is
+        # by encrypt_database_url since decrypt checks for scheme prefix)
         encrypted_pg_url = encrypt_database_url(postgres_url) if postgres_url else ""
         encrypted_mongo_url = encrypt_database_url(mongodb_url) if mongodb_url else ""
 

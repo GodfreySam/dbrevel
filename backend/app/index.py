@@ -36,6 +36,9 @@ try:
 except Exception:
     # Log the real error so it appears in Vercel function logs
     traceback.print_exc()
-    print("ERROR: Failed to initialize the application. See traceback above.",
-          file=sys.stderr, flush=True)
+    print(
+        "ERROR: Failed to initialize the application. See traceback above.",
+        file=sys.stderr,
+        flush=True,
+    )
     raise

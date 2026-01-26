@@ -50,7 +50,7 @@ async def test_postgres_connection_lightweight(
 
     logger = logging.getLogger(__name__)
     adapter = None
-    connect_timeout = min(timeout, 10)  # Cap at 10s for faster failure
+    connect_timeout = min(timeout, 25)  # Allow time for Neon/serverless DB cold starts
     try:
         safe_url = url.split("@")[-1] if "@" in url else url
         logger.info(f"Testing PostgreSQL connection to: ...@{safe_url}")

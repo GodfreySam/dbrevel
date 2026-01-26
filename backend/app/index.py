@@ -24,7 +24,7 @@ try:
 
     # Import the FastAPI app — Vercel's @vercel/python runtime has native ASGI
     # support and will detect the `app` variable automatically
-    from app.main import app  # noqa: E402
+    from app.main import app  # noqa: E402, F401
 
 except Exception:
     # Log the real error so it appears in Vercel function logs

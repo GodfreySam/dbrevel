@@ -73,6 +73,7 @@ __pycache__/
 dist/
 build/
 scripts/
+!git-hooks/
 .pytest_cache/
 .coverage
 htmlcov/

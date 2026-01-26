@@ -22,16 +22,9 @@ try:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    # Import the FastAPI app
-    from app.main import app  # noqa: E402
-
-    # Import Mangum adapter
-    from mangum import Mangum  # noqa: E402
-
-    # Create Mangum adapter for FastAPI
-    # Mangum converts ASGI (FastAPI) to the format expected by serverless platforms
-    # lifespan="off" because Vercel serverless functions don't support lifespan events
-    handler = Mangum(app, lifespan="off")
+    # Import the FastAPI app — Vercel's @vercel/python runtime has native ASGI
+    # support and will detect the `app` variable automatically
+    from app.main import app  # noqa: E402, F401
 
 except Exception:
     # Log the real error so it appears in Vercel function logs

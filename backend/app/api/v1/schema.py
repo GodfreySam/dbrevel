@@ -3,7 +3,7 @@ from app.api.deps import get_security_context
 from app.core.accounts import AccountConfig, get_account_config
 from app.core.demo_account import get_demo_account_config
 from app.models.query import SecurityContext
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 router = APIRouter(prefix="/schema", tags=["schema"])
 
@@ -134,7 +134,11 @@ Get schema for a specific database (PostgreSQL or MongoDB).
     },
 )
 async def get_database_schema(
-    database_name: str,
+    database_name: str = Path(
+        ...,
+        description='Name of the database adapter (e.g., "postgres", "mongodb")',
+        example="postgres",
+    ),
     security_ctx: SecurityContext = Depends(get_security_context),
     tenant: AccountConfig = Depends(get_account_config),
 ):

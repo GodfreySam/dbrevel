@@ -6,7 +6,7 @@ import Header from "../../components/Header";
 type ViewerType = "redoc" | "swagger";
 
 export default function ApiDocs() {
-	const [viewer, setViewer] = useState<ViewerType>("redoc");
+	const [viewer, setViewer] = useState<ViewerType>("swagger");
 	const [loading, setLoading] = useState(true);
 
 	// Get the backend base URL
@@ -91,26 +91,6 @@ export default function ApiDocs() {
 						<div className="viewer-toggle">
 							<button
 								type="button"
-								className={`toggle-btn ${viewer === "redoc" ? "active" : ""}`}
-								onClick={() => handleViewerChange("redoc")}
-								aria-pressed={viewer === "redoc"}
-							>
-								<svg
-									width="16"
-									height="16"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-								>
-									<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-								</svg>
-								ReDoc
-							</button>
-							<button
-								type="button"
 								className={`toggle-btn ${viewer === "swagger" ? "active" : ""}`}
 								onClick={() => handleViewerChange("swagger")}
 								aria-pressed={viewer === "swagger"}
@@ -129,6 +109,26 @@ export default function ApiDocs() {
 									<path d="M3 9h18M9 21V9" />
 								</svg>
 								Swagger UI
+							</button>
+							<button
+								type="button"
+								className={`toggle-btn ${viewer === "redoc" ? "active" : ""}`}
+								onClick={() => handleViewerChange("redoc")}
+								aria-pressed={viewer === "redoc"}
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+								</svg>
+								ReDoc
 							</button>
 						</div>
 					</div>

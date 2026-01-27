@@ -86,11 +86,6 @@ export default function Signup() {
 							database queries
 						</li>
 					</ul>
-					<p className="info-note">
-						<strong>Note:</strong> After creating your account and verifying
-						your email, you can add database connections in your dashboard.
-						We'll generate a secure API key for you upon registration.
-					</p>
 				</div>
 
 				<form onSubmit={handleSubmit} className="signup-form">

@@ -13,18 +13,15 @@ class Settings(BaseSettings):
     API_PORT: int = 8000  # Override in .env
     DEBUG: bool = False  # Override in .env
     # CORS: Comma-separated list of allowed origins
-    # Examples: "http://localhost:5173,https://app.dbrevel.com"
-    # For development: Common Vite ports (5173 default, 3000 if configured)
-    # For production: "https://app.dbrevel.com,https://admin.dbrevel.com"
-    # Note: Vite dev server defaults to port 5173, but can be configured to 3000
     # Override in .env for production deployments
     ALLOWED_ORIGINS: str = (
-        "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"  # Override in .env
+        # Override in .env
+        "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
     )
 
     # Gemini API
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
 
     # Database URLs
     POSTGRES_URL: str

@@ -16,8 +16,9 @@ from app.adapters.base import DatabaseAdapter
 from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import ColumnSchema, DatabaseSchema, TableSchema
-from asyncpg.exceptions import \
-    ConnectionDoesNotExistError  # type: ignore[import-untyped]
+from asyncpg.exceptions import (
+    ConnectionDoesNotExistError,
+)  # type: ignore[import-untyped]
 
 
 class PostgresAdapter(DatabaseAdapter):
@@ -257,8 +258,7 @@ class PostgresAdapter(DatabaseAdapter):
         if "LIMIT" not in query_upper:
             # Add LIMIT to the query
             query = f"{query.rstrip(';')} LIMIT {max_rows}"
-            logger.debug(
-                f"Added LIMIT {max_rows} to query without explicit limit")
+            logger.debug(f"Added LIMIT {max_rows} to query without explicit limit")
 
         assert self.pool is not None  # Type assertion for mypy
         async with self.pool.acquire() as conn:
@@ -293,8 +293,7 @@ class PostgresAdapter(DatabaseAdapter):
         try:
             if self.pool.is_closing():
                 logger = logging.getLogger(__name__)
-                logger.warning(
-                    "PostgreSQL pool is closing, attempting to reconnect...")
+                logger.warning("PostgreSQL pool is closing, attempting to reconnect...")
                 try:
                     await self.connect()  # Reconnect
                 except Exception as e:

@@ -147,8 +147,7 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
         # Use direct connection (not pooler) for testing
         # Replace pooler port (e.g., 6543) with direct port (5432) if present
         # Works with any connection pooler that uses non-standard ports
-        test_url = postgres_url.replace(
-            ":6543", ":5432").replace("?pgbouncer=true", "")
+        test_url = postgres_url.replace(":6543", ":5432").replace("?pgbouncer=true", "")
         # Disable statement cache for connection pooler compatibility
         conn = await asyncpg.connect(test_url, timeout=5, statement_cache_size=0)
         await conn.execute("SELECT 1")
@@ -161,8 +160,7 @@ async def test_demo_databases(postgres_url: str, mongodb_url: str) -> Tuple[bool
     try:
         from pymongo import MongoClient
 
-        client: MongoClient = MongoClient(
-            mongodb_url, serverSelectionTimeoutMS=5000)
+        client: MongoClient = MongoClient(mongodb_url, serverSelectionTimeoutMS=5000)
         client.admin.command("ping")
         client.close()
         mongodb_ok = True
@@ -183,8 +181,7 @@ async def _seed_demo_mongodb(mongodb_url: str) -> bool:
         # URL format: mongodb://host:port/database_name or mongodb://host:port/database_name?query
         parsed = urlparse(mongodb_url)
         db_name = (
-            parsed.path.lstrip(
-                "/").split("?")[0] if parsed.path else DEMO_MONGODB_DB
+            parsed.path.lstrip("/").split("?")[0] if parsed.path else DEMO_MONGODB_DB
         )
 
         # If no database in URL, use default
@@ -492,8 +489,7 @@ async def ensure_demo_account() -> bool:
                     decrypted_mongo_url = tenant_mongo_url
                     print("   Using plaintext MongoDB URL (decryption skipped)")
                 else:
-                    raise ValueError(
-                        f"Failed to decrypt MongoDB URL: {decrypt_error}")
+                    raise ValueError(f"Failed to decrypt MongoDB URL: {decrypt_error}")
 
             seeded = await _seed_demo_mongodb(decrypted_mongo_url)
             if seeded:
@@ -514,8 +510,7 @@ async def ensure_demo_account() -> bool:
     except Exception as e:
         # Non-blocking: log warning but don't fail startup
         error_msg = _truncate_error_message(e)
-        print(
-            f"⚠️  Warning: Could not create/update demo account: {error_msg}")
+        print(f"⚠️  Warning: Could not create/update demo account: {error_msg}")
         return False
 
 

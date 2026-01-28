@@ -101,8 +101,7 @@ async def test_postgres_connection_lightweight(
             except Exception:
                 pass
         error_msg = str(e)
-        logger.error("PostgreSQL connection error: %s",
-                     error_msg, exc_info=True)
+        logger.error("PostgreSQL connection error: %s", error_msg, exc_info=True)
         # Don't expose full connection details in error
         # Handle PostgreSQL connection pooler errors
         if "password" in error_msg.lower() or "authentication" in error_msg.lower():

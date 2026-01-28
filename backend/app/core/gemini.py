@@ -46,7 +46,7 @@ class GeminiEngine:
             temperature=0.1,  # Low for consistency
             top_p=0.95,
             top_k=40,
-            max_output_tokens=8192,
+            max_output_tokens=16384,  # Increased to prevent truncation under load
         )
 
     async def audit_models(self):

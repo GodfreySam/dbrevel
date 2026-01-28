@@ -50,15 +50,21 @@ class QueryService:
             if request.dry_run:
                 return self._build_dry_run_response(plan, trace_id)
 
-            # 4. Validate queries with Gemini
-            for query in plan.queries:
-                schema = schemas[query.database]
-                validation = await gemini_engine.validate_query(query, schema)
+            # 4. Validate queries with Gemini (optional for production optimization)
+            if not request.skip_validation:
+                for query in plan.queries:
+                    schema = schemas[query.database]
+                    validation = await gemini_engine.validate_query(query, schema)
 
-                if not validation.get("safe", True):
-                    raise QueryValidationError(
-                        f"Unsafe query detected: {validation.get('issues', [])}"
-                    )
+                    if not validation.get("safe", True):
+                        raise QueryValidationError(
+                            f"Unsafe query detected: {validation.get('issues', [])}"
+                        )
+            else:
+                # Log when validation is skipped for monitoring
+                print(
+                    f"[VALIDATION_SKIPPED] trace={trace_id} intent={request.intent[:100]}"
+                )
 
             # 5. Execute queries
             if len(plan.queries) == 1:

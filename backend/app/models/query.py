@@ -19,6 +19,10 @@ class QueryRequest(BaseModel):
         default=None, description="Additional context"
     )
     dry_run: bool = Field(default=False, description="Validate without executing")
+    skip_validation: bool = Field(
+        default=False,
+        description="Skip Gemini validation for faster queries. Use in production after testing. Default: false (validation enabled).",
+    )
 
     @field_validator("intent")
     @classmethod

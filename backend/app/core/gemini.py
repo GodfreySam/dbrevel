@@ -15,9 +15,13 @@ from typing import Any, Dict
 import google.genai
 from app.core.accounts import AccountConfig
 from app.core.config import settings
-from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
-                                 InvalidJSONError, InvalidQueryPlanError,
-                                 MissingBYOApiKeyError)
+from app.core.exceptions import (
+    GeminiAPIError,
+    GeminiResponseError,
+    InvalidJSONError,
+    InvalidQueryPlanError,
+    MissingBYOApiKeyError
+)
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
@@ -34,8 +38,8 @@ class GeminiEngine:
         # Use new google.genai Client API
         # Explicitly ensure we're on the beta endpoint for Gemini 3 features
         self.client = Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(api_version="v1beta")
+            api_key=api_key, http_options=types.HttpOptions(
+                api_version="v1beta")
         )
         self.model_name = model_name
         # Create generation config for consistent query generation
@@ -52,7 +56,8 @@ class GeminiEngine:
             models = self.client.models.list()
             for m in models:
                 logger.info(
-                    f"Available: {m.name} (Supports: {m.supported_generation_methods})")
+                    f"Available: {m.name} (Supports: {m.supported_generation_methods})"
+                )
         except Exception as e:
             logger.error(f"Failed to audit models: {e}")
 
@@ -131,9 +136,12 @@ class GeminiEngine:
 
         # If we get here, all models failed
         logger.error(
-            f"Gemini API call failed after retries on all models: {last_exception}", exc_info=True)
+            f"Gemini API call failed after retries on all models: {last_exception}",
+            exc_info=True,
+        )
         raise GeminiAPIError(
-            f"Gemini API call failed after retries: {last_exception}")
+            f"Gemini API call failed after retries: {last_exception}"
+        )
 
     def _process_response(self, response) -> QueryPlan:
         """Process Gemini response and extract QueryPlan"""
@@ -161,13 +169,15 @@ class GeminiEngine:
 
         # Extract thought signature if present (improves cross-db reliability)
         thought_match = re.search(
-            r"<thought>(.*?)</thought>", response_text, re.DOTALL)
+            r"<thought>(.*?)</thought>", response_text, re.DOTALL
+        )
         if thought_match:
             thought_process = thought_match.group(1).strip()
             logger.info(f"Gemini Thought Process: {thought_process}")
             # Remove thought block to clean up text for JSON extraction
             response_text = re.sub(
-                r"<thought>.*?</thought>", "", response_text, flags=re.DOTALL).strip()
+                r"<thought>.*?</thought>", "", response_text, flags=re.DOTALL
+            ).strip()
 
         # Extract JSON from response - handle multiple formats
         plan_data = self._extract_json_from_response(response_text)

@@ -126,6 +126,15 @@ class GeminiEngine:
                 # If successful, process and return immediately
                 return self._process_response(response)
 
+            except InvalidQueryPlanError as e:
+                # Invalid plans are semantic/prompt issues, not transient transport errors.
+                # Surface immediately instead of trying fallback models.
+                logger.error(
+                    "Gemini returned invalid QueryPlan for model %s: %s",
+                    current_model,
+                    e,
+                )
+                raise
             except Exception as e:
                 logger.warning(
                     f"Gemini API call failed for model {current_model}: {e}. Attempting fallback..."
@@ -174,10 +183,29 @@ class GeminiEngine:
         # Extract JSON from response - handle multiple formats
         plan_data = self._extract_json_from_response(response_text)
 
+        # Lightweight structural validation before constructing QueryPlan.
+        # This makes failures like {"$sum": 1} explicit and easier to surface.
+        if not isinstance(plan_data, dict):
+            raise InvalidQueryPlanError(
+                f"Gemini response JSON must be an object with 'databases' and 'queries' "
+                f"fields. Got type={type(plan_data).__name__}."
+            )
+
+        databases_value = plan_data.get("databases")
+        queries_value = plan_data.get("queries")
+
+        if not isinstance(databases_value, list) or not isinstance(queries_value, list):
+            # Avoid logging the full payload; include only the keys for debugging.
+            keys = list(plan_data.keys())
+            raise InvalidQueryPlanError(
+                "Gemini response JSON is missing required list fields 'databases' and "
+                f"'queries'. Top-level keys: {keys}."
+            )
+
         # Normalize query_type values from Gemini response
         # Gemini may return "aggregation" or other values, but we need "sql", "mongodb", or "cross-db"
-        if "queries" in plan_data and isinstance(plan_data["queries"], list):
-            for query in plan_data["queries"]:
+        if isinstance(queries_value, list):
+            for query in queries_value:
                 database = query.get("database", "").lower()
                 query_value = query.get("query")
                 query_type = (
@@ -265,11 +293,17 @@ Return JSON:
 """
 
         # Use async API from google.genai
-        response = await self.client.aio.models.generate_content(
-            model=self.model_name,
-            contents=validation_prompt,
-            config=self.generation_config,
-        )
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=validation_prompt,
+                config=self.generation_config,
+            )
+        except google.genai.errors.ServerError as e:
+            # Treat upstream model overloads and similar server-side issues as GeminiAPIError
+            # so the API layer can map them cleanly (e.g., to 503) without noisy tracebacks.
+            logger.warning("Gemini validation API error: %s", e)
+            raise GeminiAPIError(str(e)) from e
 
         # Extract text from response (new API structure)
         if not response.candidates:
@@ -566,6 +600,13 @@ User wants to join users (PostgreSQL) with orders (MongoDB). I need to fetch use
 ```json
 {{"databases":["postgres"],"queries":[{{"database":"postgres","query_type":"sql","query":"SELECT...","collection":null}}]}}
 ```
+
+TOP-LEVEL JSON SHAPE (MANDATORY):
+- The JSON object you return MUST have these top-level fields:
+  - "databases": an array of database names (e.g., ["postgres"] or ["mongodb"]).
+  - "queries": an array of query objects.
+- NEVER return a bare MongoDB operator or pipeline like {{"$sum": 1}} or [{{"$match": {{...}}}}] at the top level.
+  Such snippets must always be inside the "query" field of a query object.
 
 CRITICAL: For MongoDB queries, the "collection" field is REQUIRED and must match a collection name from the schema.""".strip()
 

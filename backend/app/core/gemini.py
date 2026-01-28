@@ -15,13 +15,9 @@ from typing import Any, Dict
 import google.genai
 from app.core.accounts import AccountConfig
 from app.core.config import settings
-from app.core.exceptions import (
-    GeminiAPIError,
-    GeminiResponseError,
-    InvalidJSONError,
-    InvalidQueryPlanError,
-    MissingBYOApiKeyError,
-)
+from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
+                                 InvalidJSONError, InvalidQueryPlanError,
+                                 MissingBYOApiKeyError)
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
@@ -38,7 +34,8 @@ class GeminiEngine:
         # Use new google.genai Client API
         # Explicitly ensure we're on the beta endpoint for Gemini 3 features
         self.client = Client(
-            api_key=api_key, http_options=types.HttpOptions(api_version="v1beta")
+            api_key=api_key, http_options=types.HttpOptions(
+                api_version="v1beta")
         )
         self.model_name = model_name
         # Create generation config for consistent query generation
@@ -126,6 +123,15 @@ class GeminiEngine:
                 # If successful, process and return immediately
                 return self._process_response(response)
 
+            except InvalidQueryPlanError as e:
+                # Invalid plans are semantic/prompt issues, not transient transport errors.
+                # Surface immediately instead of trying fallback models.
+                logger.error(
+                    "Gemini returned invalid QueryPlan for model %s: %s",
+                    current_model,
+                    e,
+                )
+                raise
             except Exception as e:
                 logger.warning(
                     f"Gemini API call failed for model {current_model}: {e}. Attempting fallback..."
@@ -138,7 +144,8 @@ class GeminiEngine:
             f"Gemini API call failed after retries on all models: {last_exception}",
             exc_info=True,
         )
-        raise GeminiAPIError(f"Gemini API call failed after retries: {last_exception}")
+        raise GeminiAPIError(
+            f"Gemini API call failed after retries: {last_exception}")
 
     def _process_response(self, response) -> QueryPlan:
         """Process Gemini response and extract QueryPlan"""
@@ -151,18 +158,22 @@ class GeminiEngine:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [part.text for part in candidate.content.parts if part.text]
+        text_parts = [
+            part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError("No text content in Gemini response parts")
+            raise GeminiResponseError(
+                "No text content in Gemini response parts")
 
         # Join text parts, preserving newlines might help with JSON structure
         response_text = "\n".join(text_parts).strip()
 
         # Log raw response for debugging (truncated to avoid spam)
-        logger.debug(f"Gemini raw response (first 500 chars): {response_text[:500]}")
+        logger.debug(
+            f"Gemini raw response (first 500 chars): {response_text[:500]}")
 
         # Extract thought signature if present (improves cross-db reliability)
-        thought_match = re.search(r"<thought>(.*?)</thought>", response_text, re.DOTALL)
+        thought_match = re.search(
+            r"<thought>(.*?)</thought>", response_text, re.DOTALL)
         if thought_match:
             thought_process = thought_match.group(1).strip()
             logger.info(f"Gemini Thought Process: {thought_process}")
@@ -174,10 +185,29 @@ class GeminiEngine:
         # Extract JSON from response - handle multiple formats
         plan_data = self._extract_json_from_response(response_text)
 
+        # Lightweight structural validation before constructing QueryPlan.
+        # This makes failures like {"$sum": 1} explicit and easier to surface.
+        if not isinstance(plan_data, dict):
+            raise InvalidQueryPlanError(
+                f"Gemini response JSON must be an object with 'databases' and 'queries' "
+                f"fields. Got type={type(plan_data).__name__}."
+            )
+
+        databases_value = plan_data.get("databases")
+        queries_value = plan_data.get("queries")
+
+        if not isinstance(databases_value, list) or not isinstance(queries_value, list):
+            # Avoid logging the full payload; include only the keys for debugging.
+            keys = list(plan_data.keys())
+            raise InvalidQueryPlanError(
+                "Gemini response JSON is missing required list fields 'databases' and "
+                f"'queries'. Top-level keys: {keys}."
+            )
+
         # Normalize query_type values from Gemini response
         # Gemini may return "aggregation" or other values, but we need "sql", "mongodb", or "cross-db"
-        if "queries" in plan_data and isinstance(plan_data["queries"], list):
-            for query in plan_data["queries"]:
+        if isinstance(queries_value, list):
+            for query in queries_value:
                 database = query.get("database", "").lower()
                 query_value = query.get("query")
                 query_type = (
@@ -265,11 +295,17 @@ Return JSON:
 """
 
         # Use async API from google.genai
-        response = await self.client.aio.models.generate_content(
-            model=self.model_name,
-            contents=validation_prompt,
-            config=self.generation_config,
-        )
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=validation_prompt,
+                config=self.generation_config,
+            )
+        except google.genai.errors.ServerError as e:
+            # Treat upstream model overloads and similar server-side issues as GeminiAPIError
+            # so the API layer can map them cleanly (e.g., to 503) without noisy tracebacks.
+            logger.warning("Gemini validation API error: %s", e)
+            raise GeminiAPIError(str(e)) from e
 
         # Extract text from response (new API structure)
         if not response.candidates:
@@ -280,9 +316,11 @@ Return JSON:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [part.text for part in candidate.content.parts if part.text]
+        text_parts = [
+            part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError("No text content in Gemini response parts")
+            raise GeminiResponseError(
+                "No text content in Gemini response parts")
 
         response_text = "\n".join(text_parts).strip()
 
@@ -313,7 +351,8 @@ Return JSON:
         # Remove markdown code blocks if present
         if "```json" in response_text:
             # Extract content between ```json and ```
-            match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
+            match = re.search(r"```json\s*(.*?)\s*```",
+                              response_text, re.DOTALL)
             if match:
                 response_text = match.group(1).strip()
         elif "```" in response_text:
@@ -525,10 +564,12 @@ Return JSON:
     ) -> str:
         """Build comprehensive prompt for query generation."""
 
-        schemas_json = {name: schema.model_dump() for name, schema in schemas.items()}
+        schemas_json = {name: schema.model_dump()
+                        for name, schema in schemas.items()}
 
         # Optimized shorter prompt
-        schemas_str = json.dumps(schemas_json, separators=(",", ":"))  # Compact JSON
+        schemas_str = json.dumps(
+            schemas_json, separators=(",", ":"))  # Compact JSON
 
         return f"""
 Generate optimized database query from user intent.
@@ -566,6 +607,13 @@ User wants to join users (PostgreSQL) with orders (MongoDB). I need to fetch use
 ```json
 {{"databases":["postgres"],"queries":[{{"database":"postgres","query_type":"sql","query":"SELECT...","collection":null}}]}}
 ```
+
+TOP-LEVEL JSON SHAPE (MANDATORY):
+- The JSON object you return MUST have these top-level fields:
+  - "databases": an array of database names (e.g., ["postgres"] or ["mongodb"]).
+  - "queries": an array of query objects.
+- NEVER return a bare MongoDB operator or pipeline like {{"$sum": 1}} or [{{"$match": {{...}}}}] at the top level.
+  Such snippets must always be inside the "query" field of a query object.
 
 CRITICAL: For MongoDB queries, the "collection" field is REQUIRED and must match a collection name from the schema.""".strip()
 

@@ -5,12 +5,10 @@ import traceback
 import uuid
 
 from app.api.deps import get_security_context
-from app.core.accounts import (
-    AccountConfig,
-    get_account_by_api_key_async,
-    get_account_config,
-)
+from app.core.accounts import (AccountConfig, get_account_by_api_key_async,
+                               get_account_config)
 from app.core.demo_account import DEMO_PROJECT_API_KEY, ensure_demo_account
+from app.core.exceptions import GeminiAPIError, InvalidQueryPlanError
 from app.core.rate_limit import rate_limit_query
 from app.models.query import QueryRequest, QueryResult, SecurityContext
 from app.services.query_service import query_service
@@ -57,7 +55,8 @@ Execute a natural language database query using Gemini AI.
                 "application/json": {
                     "example": {
                         "data": [
-                            {"id": 1, "name": "John Doe", "email": "john@example.com"},
+                            {"id": 1, "name": "John Doe",
+                                "email": "john@example.com"},
                             {
                                 "id": 2,
                                 "name": "Jane Smith",
@@ -176,12 +175,14 @@ async def execute_query(
         try:
             tenant = await get_account_by_api_key_async(DEMO_PROJECT_API_KEY)
         except HTTPException:
-            logger.warning("Demo project not found. Attempting to create it on-demand.")
+            logger.warning(
+                "Demo project not found. Attempting to create it on-demand.")
             demo_created = await ensure_demo_account()
             if demo_created:
                 try:
                     tenant = await get_account_by_api_key_async(DEMO_PROJECT_API_KEY)
-                    logger.info("✓ Demo project created and is now accessible.")
+                    logger.info(
+                        "✓ Demo project created and is now accessible.")
                 except HTTPException:
                     logger.error(
                         "❌ Demo project creation succeeded, but lookup still fails."
@@ -201,6 +202,49 @@ async def execute_query(
         # Delegate to the QueryService for full orchestration.
         return await query_service.execute_query(request_body, security_ctx, tenant)
 
+    except GeminiAPIError as e:
+        # Transport / upstream model errors from Gemini (e.g., 503 UNAVAILABLE).
+        message = str(e)
+        lower_msg = message.lower()
+
+        if "unavailable" in lower_msg or "overloaded" in lower_msg or "503" in message:
+            detail = "The AI model is currently overloaded. Please try again in a few moments."
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        else:
+            # Generic upstream failure
+            detail = (
+                "The AI model could not be reached or returned an error. "
+                "Please try again later."
+            )
+            status_code = status.HTTP_502_BAD_GATEWAY
+
+        logger.warning(
+            "Gemini API Error [%s]: %s. Intent='%s'",
+            trace_id,
+            message,
+            request_body.intent,
+        )
+        raise HTTPException(status_code=status_code, detail=detail)
+
+    except InvalidQueryPlanError as e:
+        # Gemini produced a syntactically valid JSON object that does not match
+        # the required QueryPlan schema (e.g., {"$sum": 1} without databases/queries).
+        # Treat this as a user-visible planning failure, not a hard 500.
+        error_detail = (
+            "The AI planner produced an invalid query plan for this request. "
+            "Please rephrase or simplify your query and try again."
+        )
+        logger.warning(
+            "Invalid QueryPlan Error [%s]: %s. Intent='%s'",
+            trace_id,
+            str(e),
+            request_body.intent,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error_detail,
+        )
     except ValueError as e:
         # Handle validation errors (e.g., invalid query structure).
         error_detail = str(e)

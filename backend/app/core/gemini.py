@@ -266,7 +266,11 @@ class GeminiEngine:
     async def validate_query(
         self, query: DatabaseQuery, schema: DatabaseSchema
     ) -> Dict[str, Any]:
-        """Use Gemini to validate query safety"""
+        """Use Gemini to validate query safety
+
+        Implements retry logic with exponential backoff and tiered model fallback
+        for maximum resilience against transient Gemini API failures (e.g., 503 overload errors).
+        """
 
         validation_prompt = f"""
 You are a database security expert. Validate this query for safety and correctness.
@@ -292,18 +296,63 @@ Return JSON:
 }}
 """
 
-        # Use async API from google.genai
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=validation_prompt,
-                config=self.generation_config,
+        # Define priority list: Configured model first, then fallback to Flash
+        models_to_try = []
+        seen = set()
+        # Try the configured model first (e.g., Pro), then Flash as fallback
+        for m in [self.model_name, "gemini-3-flash-preview"]:
+            if m not in seen:
+                models_to_try.append(m)
+                seen.add(m)
+
+        last_exception = None
+
+        for current_model in models_to_try:
+            # Wrap Gemini validation call with retry logic for resilience
+            async def _call_gemini_validation():
+                logger.debug(
+                    f"Calling Gemini API ({current_model}) for query validation. Query type: {query.query_type}"
+                )
+                return await self.client.aio.models.generate_content(
+                    model=current_model,
+                    contents=validation_prompt,
+                    config=self.generation_config,
+                )
+
+            try:
+                # Retry on network errors, timeouts, rate limits, and server overload (503)
+                response = await retry_with_exponential_backoff(
+                    _call_gemini_validation,
+                    max_retries=3,
+                    initial_delay=1.0,
+                    max_delay=10.0,
+                    exceptions=(
+                        ConnectionError,
+                        TimeoutError,
+                        OSError,
+                        google.genai.errors.ServerError,  # Includes 503 UNAVAILABLE
+                    ),
+                )
+
+                # If successful, process and return immediately
+                break
+
+            except Exception as e:
+                logger.warning(
+                    f"Gemini validation API call failed for model {current_model}: {e}. Attempting fallback..."
+                )
+                last_exception = e
+                continue
+
+        # If we get here and response is not set, all models failed
+        if last_exception is not None:
+            logger.error(
+                f"Gemini validation API call failed after retries on all models: {last_exception}",
+                exc_info=True,
             )
-        except google.genai.errors.ServerError as e:
-            # Treat upstream model overloads and similar server-side issues as GeminiAPIError
-            # so the API layer can map them cleanly (e.g., to 503) without noisy tracebacks.
-            logger.warning("Gemini validation API error: %s", e)
-            raise GeminiAPIError(str(e)) from e
+            raise GeminiAPIError(
+                f"Gemini validation API call failed after retries: {last_exception}"
+            )
 
         # Extract text from response (new API structure)
         if not response.candidates:

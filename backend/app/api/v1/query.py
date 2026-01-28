@@ -5,8 +5,11 @@ import traceback
 import uuid
 
 from app.api.deps import get_security_context
-from app.core.accounts import (AccountConfig, get_account_by_api_key_async,
-                               get_account_config)
+from app.core.accounts import (
+    AccountConfig,
+    get_account_by_api_key_async,
+    get_account_config,
+)
 from app.core.demo_account import DEMO_PROJECT_API_KEY, ensure_demo_account
 from app.core.exceptions import GeminiAPIError, InvalidQueryPlanError
 from app.core.rate_limit import rate_limit_query
@@ -55,8 +58,7 @@ Execute a natural language database query using Gemini AI.
                 "application/json": {
                     "example": {
                         "data": [
-                            {"id": 1, "name": "John Doe",
-                                "email": "john@example.com"},
+                            {"id": 1, "name": "John Doe", "email": "john@example.com"},
                             {
                                 "id": 2,
                                 "name": "Jane Smith",
@@ -175,14 +177,12 @@ async def execute_query(
         try:
             tenant = await get_account_by_api_key_async(DEMO_PROJECT_API_KEY)
         except HTTPException:
-            logger.warning(
-                "Demo project not found. Attempting to create it on-demand.")
+            logger.warning("Demo project not found. Attempting to create it on-demand.")
             demo_created = await ensure_demo_account()
             if demo_created:
                 try:
                     tenant = await get_account_by_api_key_async(DEMO_PROJECT_API_KEY)
-                    logger.info(
-                        "✓ Demo project created and is now accessible.")
+                    logger.info("✓ Demo project created and is now accessible.")
                 except HTTPException:
                     logger.error(
                         "❌ Demo project creation succeeded, but lookup still fails."

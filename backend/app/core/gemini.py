@@ -15,9 +15,13 @@ from typing import Any, Dict
 import google.genai
 from app.core.accounts import AccountConfig
 from app.core.config import settings
-from app.core.exceptions import (GeminiAPIError, GeminiResponseError,
-                                 InvalidJSONError, InvalidQueryPlanError,
-                                 MissingBYOApiKeyError)
+from app.core.exceptions import (
+    GeminiAPIError,
+    GeminiResponseError,
+    InvalidJSONError,
+    InvalidQueryPlanError,
+    MissingBYOApiKeyError,
+)
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
@@ -34,8 +38,7 @@ class GeminiEngine:
         # Use new google.genai Client API
         # Explicitly ensure we're on the beta endpoint for Gemini 3 features
         self.client = Client(
-            api_key=api_key, http_options=types.HttpOptions(
-                api_version="v1beta")
+            api_key=api_key, http_options=types.HttpOptions(api_version="v1beta")
         )
         self.model_name = model_name
         # Create generation config for consistent query generation
@@ -144,8 +147,7 @@ class GeminiEngine:
             f"Gemini API call failed after retries on all models: {last_exception}",
             exc_info=True,
         )
-        raise GeminiAPIError(
-            f"Gemini API call failed after retries: {last_exception}")
+        raise GeminiAPIError(f"Gemini API call failed after retries: {last_exception}")
 
     def _process_response(self, response) -> QueryPlan:
         """Process Gemini response and extract QueryPlan"""
@@ -158,22 +160,18 @@ class GeminiEngine:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [
-            part.text for part in candidate.content.parts if part.text]
+        text_parts = [part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError(
-                "No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         # Join text parts, preserving newlines might help with JSON structure
         response_text = "\n".join(text_parts).strip()
 
         # Log raw response for debugging (truncated to avoid spam)
-        logger.debug(
-            f"Gemini raw response (first 500 chars): {response_text[:500]}")
+        logger.debug(f"Gemini raw response (first 500 chars): {response_text[:500]}")
 
         # Extract thought signature if present (improves cross-db reliability)
-        thought_match = re.search(
-            r"<thought>(.*?)</thought>", response_text, re.DOTALL)
+        thought_match = re.search(r"<thought>(.*?)</thought>", response_text, re.DOTALL)
         if thought_match:
             thought_process = thought_match.group(1).strip()
             logger.info(f"Gemini Thought Process: {thought_process}")
@@ -316,11 +314,9 @@ Return JSON:
             raise GeminiResponseError("No content parts in Gemini response")
 
         # Extract text from all parts (in case there are multiple)
-        text_parts = [
-            part.text for part in candidate.content.parts if part.text]
+        text_parts = [part.text for part in candidate.content.parts if part.text]
         if not text_parts:
-            raise GeminiResponseError(
-                "No text content in Gemini response parts")
+            raise GeminiResponseError("No text content in Gemini response parts")
 
         response_text = "\n".join(text_parts).strip()
 
@@ -351,8 +347,7 @@ Return JSON:
         # Remove markdown code blocks if present
         if "```json" in response_text:
             # Extract content between ```json and ```
-            match = re.search(r"```json\s*(.*?)\s*```",
-                              response_text, re.DOTALL)
+            match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
             if match:
                 response_text = match.group(1).strip()
         elif "```" in response_text:
@@ -564,12 +559,10 @@ Return JSON:
     ) -> str:
         """Build comprehensive prompt for query generation."""
 
-        schemas_json = {name: schema.model_dump()
-                        for name, schema in schemas.items()}
+        schemas_json = {name: schema.model_dump() for name, schema in schemas.items()}
 
         # Optimized shorter prompt
-        schemas_str = json.dumps(
-            schemas_json, separators=(",", ":"))  # Compact JSON
+        schemas_str = json.dumps(schemas_json, separators=(",", ":"))  # Compact JSON
 
         return f"""
 Generate optimized database query from user intent.

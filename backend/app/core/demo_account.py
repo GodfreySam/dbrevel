@@ -4,7 +4,7 @@ import os
 from typing import Tuple
 
 import app.core.account_store as account_store_module
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]
 from app.core.accounts import AccountConfig
 from app.core.config import settings
 from motor.motor_asyncio import AsyncIOMotorClient

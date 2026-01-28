@@ -11,12 +11,14 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
-import asyncpg
+import asyncpg  # type: ignore[import-untyped]
 from app.adapters.base import DatabaseAdapter
 from app.core.config import settings
 from app.core.retry import with_retry
 from app.models.schema import ColumnSchema, DatabaseSchema, TableSchema
-from asyncpg.exceptions import ConnectionDoesNotExistError
+from asyncpg.exceptions import (
+    ConnectionDoesNotExistError,
+)  # type: ignore[import-untyped]
 
 
 class PostgresAdapter(DatabaseAdapter):

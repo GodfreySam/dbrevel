@@ -12,6 +12,7 @@ import logging
 import re
 from typing import Any, Dict
 
+import google.genai
 from app.core.accounts import AccountConfig
 from app.core.config import settings
 from app.core.exceptions import (
@@ -24,7 +25,7 @@ from app.core.exceptions import (
 from app.core.retry import retry_with_exponential_backoff
 from app.models.query import DatabaseQuery, QueryPlan, SecurityContext
 from app.models.schema import DatabaseSchema
-from google.genai import Client
+from google.genai import Client, types
 from google.genai.types import GenerateContentConfig
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,10 @@ class GeminiEngine:
 
     def __init__(self, api_key: str, model_name: str):
         # Use new google.genai Client API
-        self.client = Client(api_key=api_key)
+        # Explicitly ensure we're on the beta endpoint for Gemini 3 features
+        self.client = Client(
+            api_key=api_key, http_options=types.HttpOptions(api_version="v1beta")
+        )
         self.model_name = model_name
         # Create generation config for consistent query generation
         self.generation_config = GenerateContentConfig(
@@ -44,6 +48,17 @@ class GeminiEngine:
             top_k=40,
             max_output_tokens=8192,
         )
+
+    async def audit_models(self):
+        """List all models available to this client"""
+        try:
+            models = self.client.models.list()
+            for m in models:
+                logger.info(
+                    f"Available: {m.name} (Supports: {m.supported_generation_methods})"
+                )
+        except Exception as e:
+            logger.error(f"Failed to audit models: {e}")
 
     async def generate_query_plan(
         self,
@@ -54,6 +69,7 @@ class GeminiEngine:
         """Generate complete query execution plan from intent
 
         Uses retry logic with exponential backoff for transient Gemini API failures.
+        Implements tiered model fallback (Pro -> Flash) for resilience.
 
         Args:
             intent: Natural language query intent
@@ -70,35 +86,63 @@ class GeminiEngine:
 
         prompt = self._build_query_prompt(intent, schemas, security_ctx)
 
-        # Wrap Gemini API call with retry logic
-        async def _call_gemini():
-            logger.debug(
-                f"Calling Gemini API for query generation. Intent: {intent[:100]}..."
-            )
-            return await self.client.aio.models.generate_content(
-                model=self.model_name, contents=prompt, config=self.generation_config
-            )
+        # Define priority list: Configured model first, then fallback to Flash
+        models_to_try = []
+        seen = set()
+        # Try the configured model first (e.g., Pro), then Flash as fallback
+        for m in [self.model_name, "gemini-3-flash-preview"]:
+            if m not in seen:
+                models_to_try.append(m)
+                seen.add(m)
 
-        try:
-            # Retry on network errors, timeouts, and rate limits
-            # Don't retry on invalid responses (those are user/prompt errors)
-            response = await retry_with_exponential_backoff(
-                _call_gemini,
-                max_retries=3,
-                initial_delay=1.0,
-                max_delay=10.0,
-                exceptions=(
-                    ConnectionError,
-                    TimeoutError,
-                    OSError,
-                ),  # Network-related errors
-            )
-        except Exception as e:
-            logger.error(f"Gemini API call failed after retries: {e}", exc_info=True)
-            raise GeminiAPIError(f"Gemini API call failed after retries: {e}")
+        last_exception = None
 
+        for current_model in models_to_try:
+            # Wrap Gemini API call with retry logic
+            async def _call_gemini():
+                logger.debug(
+                    f"Calling Gemini API ({current_model}) for query generation. Intent: {intent[:100]}..."
+                )
+                return await self.client.aio.models.generate_content(
+                    model=current_model, contents=prompt, config=self.generation_config
+                )
+
+            try:
+                # Retry on network errors, timeouts, and rate limits
+                # Don't retry on invalid responses (those are user/prompt errors)
+                response = await retry_with_exponential_backoff(
+                    _call_gemini,
+                    max_retries=3,
+                    initial_delay=1.0,
+                    max_delay=10.0,
+                    exceptions=(
+                        ConnectionError,
+                        TimeoutError,
+                        OSError,
+                        google.genai.errors.ServerError,
+                    ),  # Network-related errors
+                )
+
+                # If successful, process and return immediately
+                return self._process_response(response)
+
+            except Exception as e:
+                logger.warning(
+                    f"Gemini API call failed for model {current_model}: {e}. Attempting fallback..."
+                )
+                last_exception = e
+                continue
+
+        # If we get here, all models failed
+        logger.error(
+            f"Gemini API call failed after retries on all models: {last_exception}",
+            exc_info=True,
+        )
+        raise GeminiAPIError(f"Gemini API call failed after retries: {last_exception}")
+
+    def _process_response(self, response) -> QueryPlan:
+        """Process Gemini response and extract QueryPlan"""
         # Extract text from response (new API structure)
-        # response.candidates[0].content.parts[0].text
         if not response.candidates:
             raise GeminiResponseError("No candidates in Gemini response")
 
@@ -116,6 +160,16 @@ class GeminiEngine:
 
         # Log raw response for debugging (truncated to avoid spam)
         logger.debug(f"Gemini raw response (first 500 chars): {response_text[:500]}")
+
+        # Extract thought signature if present (improves cross-db reliability)
+        thought_match = re.search(r"<thought>(.*?)</thought>", response_text, re.DOTALL)
+        if thought_match:
+            thought_process = thought_match.group(1).strip()
+            logger.info(f"Gemini Thought Process: {thought_process}")
+            # Remove thought block to clean up text for JSON extraction
+            response_text = re.sub(
+                r"<thought>.*?</thought>", "", response_text, flags=re.DOTALL
+            ).strip()
 
         # Extract JSON from response - handle multiple formats
         plan_data = self._extract_json_from_response(response_text)
@@ -501,13 +555,19 @@ REQUIRED FIELDS:
 - "query" field: For SQL use string, for MongoDB use array of pipeline stages
 - "parameters": array of parameters for SQL queries (empty array [] for MongoDB)
 
-RETURN JSON (minimal format):
-For PostgreSQL: {{"databases":["postgres"],"queries":[{{"database":"postgres","query_type":"sql","query":"SELECT * FROM table WHERE col=$1 LIMIT 1000","parameters":["val"],"estimated_rows":100,"collection":null}}]}}
-For MongoDB: {{"databases":["mongodb"],"queries":[{{"database":"mongodb","query_type":"mongodb","query":[{{"$match":{{"city":"lagos"}}}},{{"$limit":1000}}],"parameters":[],"estimated_rows":100,"collection":"users"}}]}}
+RESPONSE FORMAT:
+1. First, enclose your reasoning in <thought> tags. Analyze the intent, identify necessary tables/collections, and plan the query logic (especially for cross-db joins).
+2. Then, provide the JSON object in a markdown code block.
 
-CRITICAL:
-1. Return ONLY the JSON object, nothing else. No markdown, no explanations, no extra text before or after. Start with {{ and end with }}.
-2. For MongoDB queries, the "collection" field is REQUIRED and must match a collection name from the schema.""".strip()
+Example:
+<thought>
+User wants to join users (PostgreSQL) with orders (MongoDB). I need to fetch users first...
+</thought>
+```json
+{{"databases":["postgres"],"queries":[{{"database":"postgres","query_type":"sql","query":"SELECT...","collection":null}}]}}
+```
+
+CRITICAL: For MongoDB queries, the "collection" field is REQUIRED and must match a collection name from the schema.""".strip()
 
 
 def build_gemini_engine(tenant: AccountConfig) -> GeminiEngine:

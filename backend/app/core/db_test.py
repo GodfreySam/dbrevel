@@ -45,8 +45,9 @@ async def test_postgres_connection_lightweight(
     Returns:
         ConnectionTestResult with success status and minimal schema preview
     """
-    import asyncpg
     import logging
+
+    import asyncpg  # type: ignore[import-untyped]
 
     logger = logging.getLogger(__name__)
     conn = None
